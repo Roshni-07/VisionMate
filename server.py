@@ -28,28 +28,37 @@ import socket
 # ── DB path — use /data on cloud, local otherwise ────────────────────────────
 DB_PATH = Path(os.environ.get("DB_PATH", "visionmate.db"))
 
-# ── Optional YOLOv5 ──────────────────────────────────────────────────────────
-try:
-    import torch
-    YOLO = torch.hub.load('ultralytics/yolov5', 'yolov5m', pretrained=True, trust_repo=True)
-    YOLO.conf = 0.40
-    YOLO.iou  = 0.45
-    YOLO_OK   = True
-    print("[Server] YOLOv5m loaded.")
-except Exception as e:
-    YOLO_OK = False
-    print(f"[Server] YOLOv5 unavailable: {e}")
+# ── Lazy model loading — saves RAM on startup ─────────────────────────────────
+YOLO    = None
+YOLO_OK = False
+OCR     = None
+OCR_OK  = False
 
-# ── EasyOCR ──────────────────────────────────────────────────────────────────
-try:
-    import easyocr
-    print("[Server] Loading EasyOCR...")
-    OCR    = easyocr.Reader(['en'], gpu=False)
-    OCR_OK = True
-    print("[Server] EasyOCR ready.")
-except Exception as e:
-    OCR_OK = False
-    print(f"[Server] EasyOCR unavailable: {e}")
+def get_yolo():
+    global YOLO, YOLO_OK
+    if YOLO is None:
+        try:
+            import torch
+            YOLO    = torch.hub.load('ultralytics/yolov5', 'yolov5n', pretrained=True, trust_repo=True)
+            YOLO.conf = 0.40
+            YOLO.iou  = 0.45
+            YOLO_OK   = True
+            print("[Server] YOLOv5n loaded.")
+        except Exception as e:
+            print(f"[Server] YOLOv5 unavailable: {e}")
+    return YOLO, YOLO_OK
+
+def get_ocr():
+    global OCR, OCR_OK
+    if OCR is None:
+        try:
+            import easyocr
+            OCR    = easyocr.Reader(['en'], gpu=False)
+            OCR_OK = True
+            print("[Server] EasyOCR loaded.")
+        except Exception as e:
+            print(f"[Server] EasyOCR unavailable: {e}")
+    return OCR, OCR_OK
 
 # ── OpenCV Face ───────────────────────────────────────────────────────────────
 FACE_CASCADE  = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -207,8 +216,13 @@ OCR_LOCK = threading.Lock()
 
 def run_ocr_job(job_id, frame):
     try:
+        ocr, ocr_ok = get_ocr()
+        if not ocr_ok:
+            with OCR_LOCK:
+                OCR_JOBS[job_id] = {"status": "error", "result": {"text": "", "message": "OCR not available."}}
+            return
         gray    = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        results = OCR.readtext(gray, detail=1, paragraph=True)
+        results = ocr.readtext(gray, detail=1, paragraph=True)
         texts   = []
         for r in results:
             try:
@@ -244,8 +258,8 @@ def serve_app():
 def status():
     return jsonify({
         "status":  "ok",
-        "yolo":    YOLO_OK,
-        "ocr":     OCR_OK,
+        "yolo":    YOLO is not None,
+        "ocr":     OCR is not None,
         "message": "VisionMate server is running."
     })
 
@@ -392,8 +406,6 @@ def ocr_endpoint():
     b64  = data.get("image", "")
     if not b64:
         return jsonify({"error": "No image."}), 400
-    if not OCR_OK:
-        return jsonify({"text": "", "message": "OCR not available."})
 
     frame  = decode_image(b64)
     job_id = str(uuid.uuid4())
@@ -421,12 +433,14 @@ def object_endpoint():
     b64  = data.get("image", "")
     if not b64:
         return jsonify({"error": "No image."}), 400
-    if not YOLO_OK:
+
+    yolo, yolo_ok = get_yolo()
+    if not yolo_ok:
         return jsonify({"objects": [], "message": "Object detection not available."})
 
     frame   = decode_image(b64)
     rgb     = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = YOLO(rgb, size=480)
+    results = yolo(rgb, size=480)
     preds   = results.pandas().xyxy[0]
     labels  = sorted(set(preds["name"].tolist()))
     counts  = preds["name"].value_counts().to_dict()
