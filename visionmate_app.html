@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="theme-color" content="#0a0f1e"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>VisionMate</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#0a0f1e;--surface:#111827;--card:#1a2235;--border:#1e3a5f;--face:#00d4ff;--ocr:#00ff9d;--obj:#ff6b35;--reg:#a78bfa;--warn:#fbbf24;--text:#e2e8f0;--muted:#64748b;--mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100dvh;overflow-x:hidden;user-select:none;}
+body::before{content:'';position:fixed;inset:0;background-image:radial-gradient(ellipse 80% 60% at 20% 10%,rgba(0,212,255,.06) 0%,transparent 60%),radial-gradient(ellipse 60% 80% at 80% 90%,rgba(167,139,250,.05) 0%,transparent 60%),linear-gradient(rgba(0,212,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.03) 1px,transparent 1px);background-size:100% 100%,100% 100%,40px 40px,40px 40px;pointer-events:none;z-index:0;}
+#login-screen{position:fixed;inset:0;z-index:500;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;}
+#login-screen.hidden{display:none;}
+.login-box{width:100%;max-width:360px;display:flex;flex-direction:column;gap:20px;align-items:center;}
+.login-logo{width:72px;height:72px;background:linear-gradient(135deg,var(--face),var(--reg));border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:36px;}
+.login-title{font-family:var(--mono);font-size:22px;font-weight:700;background:linear-gradient(135deg,var(--face),var(--reg));-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;}
+.login-sub{font-size:13px;color:var(--muted);text-align:center;line-height:1.5;}
+.login-input{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:12px;padding:14px 16px;color:var(--text);font-size:16px;font-family:var(--sans);outline:none;text-align:center;transition:border-color .2s;}
+.login-input:focus{border-color:var(--face);}
+.login-input::placeholder{color:var(--muted);}
+.btn-login{width:100%;padding:15px;border-radius:12px;background:linear-gradient(135deg,var(--face),#0066aa);border:none;color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:var(--sans);}
+.login-server{width:100%;display:flex;flex-direction:column;gap:8px;}
+.login-server label{font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;}
+.login-server input{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-size:13px;font-family:var(--mono);outline:none;}
+header{position:sticky;top:0;z-index:100;background:rgba(10,15,30,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;}
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--face),var(--reg));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+.logo-text{font-family:var(--mono);font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--face),var(--reg));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.logo-sub{font-size:9px;color:var(--muted);font-family:var(--mono);letter-spacing:.08em;margin-top:-2px;}
+.header-right{display:flex;align-items:center;gap:8px;}
+.user-badge{font-size:11px;color:var(--reg);font-family:var(--mono);padding:4px 10px;border-radius:20px;border:1px solid rgba(167,139,250,.3);background:rgba(167,139,250,.08);}
+.server-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:var(--mono);cursor:pointer;padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:rgba(255,255,255,.03);}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
+.dot.online{background:var(--ocr);box-shadow:0 0 6px var(--ocr);}
+.dot.offline{background:var(--obj);}
+main{position:relative;z-index:1;padding:16px;display:flex;flex-direction:column;gap:14px;}
+.viewfinder{position:relative;width:100%;aspect-ratio:4/3;border-radius:16px;overflow:hidden;border:1px solid var(--border);background:#000;}
+#camera{width:100%;height:100%;object-fit:cover;}
+.vf-overlay{position:absolute;inset:0;pointer-events:none;}
+.vf-overlay::before,.vf-overlay::after{content:'';position:absolute;width:24px;height:24px;border-color:var(--face);border-style:solid;opacity:.7;}
+.vf-overlay::before{top:12px;left:12px;border-width:2px 0 0 2px;border-radius:4px 0 0 0;}
+.vf-overlay::after{bottom:12px;right:12px;border-width:0 2px 2px 0;border-radius:0 0 4px 0;}
+.vf-corner-tr,.vf-corner-bl{position:absolute;width:24px;height:24px;border-color:var(--face);border-style:solid;opacity:.7;}
+.vf-corner-tr{top:12px;right:12px;border-width:2px 2px 0 0;border-radius:0 4px 0 0;}
+.vf-corner-bl{bottom:12px;left:12px;border-width:0 0 2px 2px;border-radius:0 0 0 4px;}
+.vf-status{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);backdrop-filter:blur(6px);border-radius:20px;padding:4px 12px;font-size:11px;font-family:var(--mono);color:var(--face);letter-spacing:.06em;border:1px solid rgba(0,212,255,.2);}
+.scanning-ring{position:absolute;inset:0;border-radius:16px;border:2px solid transparent;pointer-events:none;opacity:0;transition:opacity .3s;}
+.scanning-ring.active{opacity:1;animation:scanRing 1.2s ease-in-out infinite;}
+@keyframes scanRing{0%{border-color:rgba(0,212,255,.6);box-shadow:inset 0 0 20px rgba(0,212,255,.1);}50%{border-color:rgba(0,212,255,.1);}100%{border-color:rgba(0,212,255,.6);box-shadow:inset 0 0 20px rgba(0,212,255,.1);}}
+.result-card{border-radius:14px;border:1px solid var(--border);background:var(--card);padding:16px;min-height:72px;display:flex;align-items:flex-start;gap:12px;transition:all .3s;animation:fadeIn .3s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.result-icon{width:40px;height:40px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;}
+.result-icon.face{background:rgba(0,212,255,.12);}
+.result-icon.ocr{background:rgba(0,255,157,.12);}
+.result-icon.object{background:rgba(255,107,53,.12);}
+.result-icon.reg{background:rgba(167,139,250,.12);}
+.result-icon.error{background:rgba(251,191,36,.12);}
+.result-body{flex:1;}
+.result-label{font-size:10px;font-family:var(--mono);letter-spacing:.1em;color:var(--muted);margin-bottom:4px;text-transform:uppercase;}
+.result-label.face{color:var(--face);}
+.result-label.ocr{color:var(--ocr);}
+.result-label.object{color:var(--obj);}
+.result-label.reg{color:var(--reg);}
+.result-text{font-size:15px;line-height:1.5;color:var(--text);}
+.result-sub{font-size:12px;color:var(--muted);margin-top:4px;}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.btn{border:none;border-radius:14px;padding:16px 12px;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .15s;position:relative;overflow:hidden;}
+.btn:active{transform:scale(.97);}
+.btn-icon{font-size:26px;}
+.btn-face{background:rgba(0,212,255,.1);color:var(--face);border:1px solid rgba(0,212,255,.25);}
+.btn-ocr{background:rgba(0,255,157,.1);color:var(--ocr);border:1px solid rgba(0,255,157,.25);}
+.btn-object{background:rgba(255,107,53,.1);color:var(--obj);border:1px solid rgba(255,107,53,.25);}
+.btn-reg{background:rgba(167,139,250,.1);color:var(--reg);border:1px solid rgba(167,139,250,.25);}
+.btn.loading .btn-icon{animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.speak-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;color:var(--muted);font-size:13px;cursor:pointer;font-family:var(--sans);}
+.speak-btn.speaking{border-color:var(--ocr);color:var(--ocr);background:rgba(0,255,157,.07);}
+.section-title{font-size:11px;color:var(--muted);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:-6px;}
+.modal-bg{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);display:flex;align-items:flex-end;animation:fadeIn .2s ease;}
+.modal-bg.hidden{display:none;}
+.modal{width:100%;background:var(--surface);border-radius:22px 22px 0 0;border:1px solid var(--border);padding:24px 20px 40px;display:flex;flex-direction:column;gap:16px;animation:slideUp .3s cubic-bezier(.34,1.56,.64,1);}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
+.modal-handle{width:40px;height:4px;border-radius:2px;background:var(--border);margin:0 auto -8px;}
+.modal-title{font-size:17px;font-weight:600;text-align:center;font-family:var(--mono);}
+.modal-preview{width:100%;aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:#000;border:1px solid var(--border);}
+.modal-preview img{width:100%;height:100%;object-fit:cover;}
+.modal label{font-size:12px;color:var(--muted);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;margin-bottom:-8px;}
+.modal input{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text);font-size:15px;font-family:var(--sans);width:100%;outline:none;}
+.modal input:focus{border-color:var(--reg);}
+.modal input::placeholder{color:var(--muted);}
+.modal-btns{display:flex;gap:10px;}
+.btn-cancel{flex:1;padding:14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans);}
+.btn-save{flex:2;padding:14px;border-radius:12px;background:linear-gradient(135deg,var(--reg),#7c3aed);border:none;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans);}
+.persons-list{display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;}
+.person-row{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border-radius:10px;padding:10px 12px;border:1px solid var(--border);}
+.person-name{font-size:14px;font-weight:600;}
+.person-desc{font-size:11px;color:var(--muted);}
+.btn-forget{background:rgba(255,107,53,.15);border:1px solid rgba(255,107,53,.3);color:var(--obj);border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:var(--sans);}
+#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(26,34,53,.95);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:20px;padding:10px 20px;font-size:13px;color:var(--text);font-family:var(--mono);z-index:500;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;}
+#toast.show{opacity:1;}
+.hidden{display:none!important;}
+#reg-canvas,#snap-canvas{display:none;}
+</style>
+</head>
+<body>
+<canvas id="reg-canvas"></canvas>
+<canvas id="snap-canvas"></canvas>
+
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">👁️</div>
+    <div class="login-title">VisionMate</div>
+    <div class="login-sub">AI-Powered Assistive System<br/>Enter your name to access your personal memory.</div>
+    <div class="login-server">
+      <label>Server URL</label>
+      <input type="text" id="login-server-url" placeholder="http://192.168.x.x:5000" inputmode="url"/>
+    </div>
+    <input type="text" class="login-input" id="login-username" placeholder="Enter your name (e.g. Roshni)" autocomplete="off"/>
+    <button class="btn-login" onclick="doLogin()">Enter VisionMate</button>
+  </div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">👁️</div>
+    <div>
+      <div class="logo-text">VisionMate</div>
+      <div class="logo-sub">BMSIT&amp;M · 2025-26</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="user-badge" id="user-badge">—</div>
+    <div class="server-badge" onclick="openSettings()">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-text">—</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="viewfinder">
+    <video id="camera" autoplay playsinline muted></video>
+    <div class="vf-overlay">
+      <div class="vf-corner-tr"></div>
+      <div class="vf-corner-bl"></div>
+    </div>
+    <div class="vf-status" id="vf-status">READY</div>
+    <div class="scanning-ring" id="scan-ring"></div>
+  </div>
+  <div class="result-card" id="result-card">
+    <div class="result-icon face">🧠</div>
+    <div class="result-body">
+      <div class="result-label face">VISIONMATE</div>
+      <div class="result-text" id="result-text">Point the camera and tap a button below.</div>
+    </div>
+  </div>
+  <button class="speak-btn" id="speak-btn" onclick="speakResult()">
+    <span>🔊</span><span>Speak Result</span>
+  </button>
+  <div class="section-title">AI Modules</div>
+  <div class="actions">
+    <button class="btn btn-face" id="btn-face" onclick="runFace()">
+      <span class="btn-icon">👤</span><span>Who is this?</span>
+    </button>
+    <button class="btn btn-ocr" id="btn-ocr" onclick="runOCR()">
+      <span class="btn-icon">📖</span><span>Read Text</span>
+    </button>
+    <button class="btn btn-object" id="btn-obj" onclick="runObject()">
+      <span class="btn-icon">🔍</span><span>What is this?</span>
+    </button>
+    <button class="btn btn-reg" id="btn-reg" onclick="openRegister()">
+      <span class="btn-icon">➕</span><span>Register Face</span>
+    </button>
+  </div>
+</main>
+
+<div class="modal-bg hidden" id="reg-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="background:linear-gradient(135deg,var(--reg),var(--face));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Register New Person</div>
+    <div class="modal-preview"><img id="reg-preview" src="" alt=""/></div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label>Name</label>
+      <input type="text" id="reg-name" placeholder="e.g. Riya" autocomplete="off"/>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label>Description (optional)</label>
+      <input type="text" id="reg-desc" placeholder="e.g. my classmate" autocomplete="off"/>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeRegister()">Cancel</button>
+      <button class="btn-save" id="btn-save" onclick="saveRegister()">Save Person</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg hidden" id="settings-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" style="color:var(--face);">Settings</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label>Server URL</label>
+      <input type="text" id="settings-url" placeholder="http://192.168.x.x:5000"/>
+    </div>
+    <button class="btn-save" onclick="saveSettings()">Save &amp; Reconnect</button>
+    <button class="btn-cancel" style="border-radius:12px;padding:13px" onclick="logOut()">🚪 Log Out</button>
+    <div class="section-title">My Registered Persons</div>
+    <div class="persons-list" id="persons-list"></div>
+    <button class="btn-cancel" style="border-radius:12px;padding:13px" onclick="closeSettings()">Close</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+let SERVER=localStorage.getItem('vm_server')||'';
+let USERNAME=localStorage.getItem('vm_username')||'';
+let USER_ID=null,lastMessage='Point the camera and tap a button below.',isLoading=false,stream=null;
+
+window.addEventListener('load',()=>{
+  if(SERVER) document.getElementById('login-server-url').value=SERVER;
+  if(USERNAME) document.getElementById('login-username').value=USERNAME;
+  if(SERVER&&USERNAME) doLogin(true);
+});
+
+async function doLogin(silent=false){
+  const url=document.getElementById('login-server-url').value.trim().replace(/\/$/,'');
+  const name=document.getElementById('login-username').value.trim();
+  if(!url){toast('Enter server URL.');return;}
+  if(!name){toast('Enter your name.');return;}
+  SERVER=url; USERNAME=name.toLowerCase();
+  if(!silent) toast('Connecting...');
+  try{
+    const res=await fetch(`${SERVER}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:USERNAME}),signal:AbortSignal.timeout(8000)});
+    const data=await res.json();
+    if(data.success){
+      USER_ID=data.user_id;
+      localStorage.setItem('vm_server',SERVER);
+      localStorage.setItem('vm_username',USERNAME);
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('user-badge').textContent=USERNAME;
+      startCamera(); checkStatus();
+      setInterval(checkStatus,15000);
+      speak(data.message);
+    }else{toast('Login failed.');}
+  }catch(e){
+    if(silent){document.getElementById('login-screen').classList.remove('hidden');}
+    else{toast('Cannot reach server. Check URL and WiFi.');}
+  }
+}
+
+function logOut(){
+  localStorage.removeItem('vm_username');
+  USERNAME='';USER_ID=null;
+  closeSettings();
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-username').value='';
+}
+
+async function startCamera(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}},audio:false});
+    document.getElementById('camera').srcObject=stream;
+  }catch(e){
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+      document.getElementById('camera').srcObject=stream;
+      document.getElementById('camera').style.transform='none';
+    }catch(e2){showResult('error','⚠️','CAMERA','Cannot access camera. Allow camera permission.');}
+  }
+}
+
+async function captureFrame(id='snap-canvas'){
+  return new Promise(resolve=>{
+    setTimeout(()=>{
+      const v=document.getElementById('camera'),c=document.getElementById(id);
+      c.width=v.videoWidth||1280; c.height=v.videoHeight||720;
+      const ctx=c.getContext('2d');
+      ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+      ctx.drawImage(v,0,0,c.width,c.height);
+      resolve(c.toDataURL('image/jpeg',0.92));
+    },400);
+  });
+}
+
+async function apiPost(endpoint,body){
+  const ms=endpoint==='ocr'?30000:15000;
+  const ctrl=new AbortController();
+  const t=setTimeout(()=>ctrl.abort(),ms);
+  try{
+    const res=await fetch(`${SERVER}/${endpoint}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,username:USERNAME}),signal:ctrl.signal});
+    clearTimeout(t);
+    if(!res.ok) throw new Error(`Server error ${res.status}`);
+    return res.json();
+  }catch(e){clearTimeout(t);if(e.name==='AbortError') throw new Error('timeout');throw e;}
+}
+
+async function checkStatus(){
+  const dot=document.getElementById('status-dot'),txt=document.getElementById('status-text');
+  try{
+    await fetch(`${SERVER}/status`,{signal:AbortSignal.timeout(4000)});
+    dot.className='dot online'; txt.textContent='Online';
+  }catch{dot.className='dot offline'; txt.textContent='Offline';}
+}
+
+function speak(text){
+  if(!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.rate=0.95; u.pitch=1.0; u.lang='en-IN';
+  const btn=document.getElementById('speak-btn');
+  btn.classList.add('speaking');
+  u.onend=()=>btn.classList.remove('speaking');
+  speechSynthesis.speak(u);
+}
+function speakResult(){speak(lastMessage);}
+
+function showResult(type,icon,label,text,sub=''){
+  const card=document.getElementById('result-card');
+  card.querySelector('.result-icon').className=`result-icon ${type}`;
+  card.querySelector('.result-icon').textContent=icon;
+  card.querySelector('.result-label').className=`result-label ${type}`;
+  card.querySelector('.result-label').textContent=label;
+  document.getElementById('result-text').textContent=text;
+  lastMessage=text;
+  let rs=card.querySelector('.result-sub');
+  if(sub){if(!rs){rs=document.createElement('div');rs.className='result-sub';card.querySelector('.result-body').appendChild(rs);}rs.textContent=sub;}
+  else if(rs) rs.textContent='';
+  card.style.animation='none'; card.offsetHeight; card.style.animation='';
+  speak(text);
+}
+
+function setLoading(id,v){
+  document.getElementById(id).classList.toggle('loading',v);
+  document.getElementById('scan-ring').classList.toggle('active',v);
+  document.getElementById('vf-status').textContent=v?'SCANNING…':'READY';
+  isLoading=v;
+}
+
+function toast(msg,dur=2500){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),dur);
+}
+
+async function runFace(){
+  if(isLoading) return;
+  setLoading('btn-face',true);
+  try{
+    const image=await captureFrame();
+    const data=await apiPost('face',{image});
+    if(data.found){
+      showResult('face','👤','FACE RECOGNISED',data.message,`Confidence: ${Math.round(data.confidence*100)}% · Met ${data.meet_count}×`);
+    }else if(data.is_new){
+      showResult('reg','❓','NEW PERSON',data.message);
+      setTimeout(()=>openRegister(image),600);
+    }else{
+      showResult('face','👤','FACE',data.message);
+    }
+  }catch(e){showResult('error','⚠️','ERROR',e.message==='timeout'?'Server took too long. Try again.':'Cannot reach server. Check WiFi.');}
+  setLoading('btn-face',false);
+}
+
+async function runOCR(){
+  if(isLoading) return;
+  setLoading('btn-ocr',true);
+  showResult('ocr','📖','TEXT READ','Scanning text... please wait.');
+  try{
+    const image=await captureFrame();
+    const job=await apiPost('ocr',{image});
+    if(!job.job_id){showResult('ocr','📖','TEXT READ',job.message||'OCR not available.');setLoading('btn-ocr',false);return;}
+    let attempts=0;
+    const poll=setInterval(async()=>{
+      attempts++;
+      try{
+        const res=await fetch(`${SERVER}/ocr_result/${job.job_id}`);
+        const data=await res.json();
+        if(data.status==='done'){clearInterval(poll);showResult('ocr','📖','TEXT READ',data.message);setLoading('btn-ocr',false);}
+        else if(data.status==='error'){clearInterval(poll);showResult('error','⚠️','OCR ERROR',data.message);setLoading('btn-ocr',false);}
+        else if(attempts>=30){clearInterval(poll);showResult('error','⚠️','TIMEOUT','OCR took too long. Try again.');setLoading('btn-ocr',false);}
+      }catch(e){clearInterval(poll);showResult('error','⚠️','ERROR','Lost connection.');setLoading('btn-ocr',false);}
+    },2000);
+  }catch(e){showResult('error','⚠️','ERROR','Cannot reach server.');setLoading('btn-ocr',false);}
+}
+
+async function runObject(){
+  if(isLoading) return;
+  setLoading('btn-obj',true);
+  try{
+    const image=await captureFrame();
+    const data=await apiPost('object',{image});
+    showResult('object','🔍','OBJECTS DETECTED',data.message);
+  }catch(e){showResult('error','⚠️','ERROR',e.message==='timeout'?'Detection took too long.':'Cannot reach server.');}
+  setLoading('btn-obj',false);
+}
+
+let pendingImage=null;
+async function openRegister(pre=null){
+  pendingImage=pre||await captureFrame('reg-canvas');
+  document.getElementById('reg-preview').src=pendingImage;
+  document.getElementById('reg-name').value='';
+  document.getElementById('reg-desc').value='';
+  document.getElementById('reg-modal').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('reg-name').focus(),400);
+}
+function closeRegister(){document.getElementById('reg-modal').classList.add('hidden');}
+async function saveRegister(){
+  const name=document.getElementById('reg-name').value.trim();
+  const desc=document.getElementById('reg-desc').value.trim();
+  if(!name){toast('Please enter a name.');return;}
+  const btn=document.getElementById('btn-save');
+  btn.textContent='Saving…'; btn.disabled=true;
+  try{
+    const data=await apiPost('register',{image:pendingImage,name,description:desc});
+    closeRegister();
+    showResult(data.success?'reg':'error',data.success?'✅':'⚠️',data.success?'REGISTERED':'FAILED',data.message);
+    if(data.success) toast(`${name} saved to your memory.`);
+  }catch(e){showResult('error','⚠️','ERROR','Cannot reach server.');closeRegister();}
+  btn.textContent='Save Person'; btn.disabled=false;
+}
+
+function openSettings(){
+  document.getElementById('settings-url').value=SERVER;
+  document.getElementById('settings-modal').classList.remove('hidden');
+  loadPersonsList();
+}
+function closeSettings(){document.getElementById('settings-modal').classList.add('hidden');}
+async function saveSettings(){
+  const url=document.getElementById('settings-url').value.trim().replace(/\/$/,'');
+  if(!url){toast('Enter a valid URL.');return;}
+  SERVER=url; localStorage.setItem('vm_server',SERVER);
+  await checkStatus();
+  toast(document.getElementById('status-dot').classList.contains('online')?'Connected!':'Cannot connect.');
+}
+async function loadPersonsList(){
+  const list=document.getElementById('persons-list');
+  try{
+    const res=await fetch(`${SERVER}/persons`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:USERNAME})});
+    const data=await res.json();
+    if(!data.persons||!data.persons.length){list.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:12px">No persons registered yet.</div>';return;}
+    list.innerHTML=data.persons.map(p=>`<div class="person-row"><div><div class="person-name">${p.name}</div><div class="person-desc">${p.description||'No description'} · Met ${p.meet_count}×</div></div><button class="btn-forget" onclick="forgetPerson('${p.name}')">Forget</button></div>`).join('');
+  }catch{list.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:12px">Server offline.</div>';}
+}
+async function forgetPerson(name){
+  if(!confirm(`Remove ${name} from your memory?`)) return;
+  try{const data=await apiPost('forget',{name});toast(data.message);loadPersonsList();}
+  catch{toast('Error connecting to server.');}
+}
+function logOut(){
+  localStorage.removeItem('vm_username');
+  USERNAME='';USER_ID=null;
+  closeSettings();
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-username').value='';
+}
+['reg-modal','settings-modal'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',function(e){if(e.target===this)this.classList.add('hidden');});
+});
+let lastTap=0;
+document.addEventListener('touchend',e=>{const now=Date.now();if(now-lastTap<300)e.preventDefault();lastTap=now;},{passive:false});
+</script>
+</body>
+</html>

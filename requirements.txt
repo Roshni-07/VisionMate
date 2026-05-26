@@ -1,0 +1,11 @@
+flask
+flask-cors
+opencv-contrib-python-headless
+easyocr
+torch
+torchvision
+numpy<2
+pillow
+pandas
+seaborn
+gunicorn
