@@ -277,11 +277,23 @@ async function startCamera(){
 async function captureFrame(id='snap-canvas'){
   return new Promise(resolve=>{
     setTimeout(()=>{
+      // Flash effect — white overlay blink
+      const flash = document.createElement('div');
+      flash.style.cssText = 'position:fixed;inset:0;background:white;opacity:0.7;z-index:999;pointer-events:none;transition:opacity 0.3s';
+      document.body.appendChild(flash);
+      setTimeout(()=>{ flash.style.opacity='0'; setTimeout(()=>flash.remove(),300); }, 80);
+
+      // Capture frame
       const v=document.getElementById('camera'),c=document.getElementById(id);
       c.width=v.videoWidth||1280; c.height=v.videoHeight||720;
       const ctx=c.getContext('2d');
       ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
       ctx.drawImage(v,0,0,c.width,c.height);
+
+      // Show captured preview briefly in viewfinder
+      document.getElementById('vf-status').textContent='📸 CAPTURED';
+      setTimeout(()=>{ document.getElementById('vf-status').textContent='SCANNING…'; },800);
+
       resolve(c.toDataURL('image/jpeg',0.92));
     },400);
   });

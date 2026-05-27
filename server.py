@@ -1,7 +1,8 @@
 """
-VisionMate – Lightweight API Server
-Uses Google Vision API (OCR + Objects) and Face++ (Face Recognition)
-Runs on Render free tier — no heavy models, fast responses
+VisionMate – Lightweight Server
+Face++ for face recognition + object detection
+OCR.space for text reading
+No card needed, runs on Render free tier
 """
 
 from flask import Flask, request, jsonify, send_file
@@ -20,31 +21,33 @@ from PIL import Image
 import socket
 
 # ── API KEYS ──────────────────────────────────────────────────────────────────
-GOOGLE_VISION_KEY = os.environ.get("GOOGLE_VISION_KEY", "AIzaSyDbQjiFP8ZtbxvtwgyC7SHvcJIc6KJTND0")
-FACEPP_KEY        = os.environ.get("FACEPP_KEY",         "OWFgrqZhO0P1N_tu4ITyRqFDVJXC43sz")
-FACEPP_SECRET     = os.environ.get("FACEPP_SECRET",      "tdbRiyI11TKBEr9bPAvmnWEq0seGx1Tz")
+FACEPP_KEY    = os.environ.get("FACEPP_KEY",    "OWFgrqZhO0P1N_tu4ITyRqFDVJXC43sz")
+FACEPP_SECRET = os.environ.get("FACEPP_SECRET", "tdbRiyI11TKBEr9bPAvmnWEq0seGx1Tz")
+OCRSPACE_KEY  = os.environ.get("OCRSPACE_KEY",  "K82034259688957")
 
-FACEPP_DETECT  = "https://api-us.faceplusplus.com/facepp/v3/detect"
-FACEPP_FACESET = "https://api-us.faceplusplus.com/facepp/v3/faceset"
-FACEPP_SEARCH  = "https://api-us.faceplusplus.com/facepp/v3/search"
-VISION_URL     = f"https://vision.googleapis.com/v1/images:annotate?key={GOOGLE_VISION_KEY}"
+# ── API endpoints ─────────────────────────────────────────────────────────────
+FACEPP_DETECT   = "https://api-us.faceplusplus.com/facepp/v3/detect"
+FACEPP_FACESET  = "https://api-us.faceplusplus.com/facepp/v3/faceset"
+FACEPP_SEARCH   = "https://api-us.faceplusplus.com/facepp/v3/search"
+FACEPP_RECOGNIZE = "https://api-us.faceplusplus.com/imagepp/v1/recognizegeneral"
+OCRSPACE_URL    = "https://api.ocr.space/parse/image"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DATABASE
 # ═══════════════════════════════════════════════════════════════════════════════
 DB_PATH = Path(os.environ.get("DB_PATH", "visionmate.db"))
 DB_LOCK = threading.Lock()
-_db_conn = None
+_db = None
 
 def get_db():
-    global _db_conn
-    if _db_conn is None:
-        _db_conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-        _db_conn.execute("""CREATE TABLE IF NOT EXISTS users (
+    global _db
+    if _db is None:
+        _db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+        _db.execute("""CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             faceset_token TEXT)""")
-        _db_conn.execute("""CREATE TABLE IF NOT EXISTS persons (
+        _db.execute("""CREATE TABLE IF NOT EXISTS persons (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             name TEXT NOT NULL,
@@ -53,13 +56,13 @@ def get_db():
             first_seen TEXT,
             last_seen TEXT,
             meet_count INTEGER DEFAULT 1)""")
-        _db_conn.commit()
-    return _db_conn
+        _db.commit()
+    return _db
 
 def db_get_user(username):
     with DB_LOCK:
         return get_db().execute(
-            "SELECT id, username, faceset_token FROM users WHERE username=?",
+            "SELECT id,username,faceset_token FROM users WHERE username=?",
             (username.lower(),)).fetchone()
 
 def db_create_user(username):
@@ -79,19 +82,19 @@ def db_get_persons(user_id):
             "SELECT id,name,description,face_token,last_seen,meet_count FROM persons WHERE user_id=?",
             (user_id,)).fetchall()
 
-def db_save_person(user_id, name, description, face_token):
+def db_save_person(user_id, name, desc, face_token):
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     with DB_LOCK:
         get_db().execute(
             "INSERT INTO persons (user_id,name,description,face_token,first_seen,last_seen,meet_count) VALUES(?,?,?,?,?,?,1)",
-            (user_id, name, description, face_token, now, now))
+            (user_id, name, desc, face_token, now, now))
         get_db().commit()
 
 def db_update_person(person_id):
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     with DB_LOCK:
         get_db().execute(
-            "UPDATE persons SET last_seen=?, meet_count=meet_count+1 WHERE id=?", (now, person_id))
+            "UPDATE persons SET last_seen=?,meet_count=meet_count+1 WHERE id=?", (now, person_id))
         get_db().commit()
 
 def db_delete_person(user_id, name):
@@ -101,24 +104,22 @@ def db_delete_person(user_id, name):
         get_db().commit()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# HELPERS
+# IMAGE HELPERS
 # ═══════════════════════════════════════════════════════════════════════════════
-def decode_b64(b64):
-    if b64.startswith("data:"):
-        b64 = b64.split(",", 1)[1]
-    return base64.b64decode(b64)
-
-def b64_to_jpeg(b64, quality=88):
-    raw = decode_b64(b64)
-    img = Image.open(BytesIO(raw)).convert("RGB")
-    buf = BytesIO()
-    img.save(buf, format="JPEG", quality=quality)
-    return buf.getvalue()
-
 def clean_b64(b64):
     if b64.startswith("data:"):
         b64 = b64.split(",", 1)[1]
     return b64
+
+def b64_to_jpeg(b64, max_size=1600):
+    raw = base64.b64decode(clean_b64(b64))
+    img = Image.open(BytesIO(raw)).convert("RGB")
+    # Resize if too large to save API bandwidth
+    if max(img.size) > max_size:
+        img.thumbnail((max_size, max_size), Image.LANCZOS)
+    buf = BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    return buf.getvalue()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FACE++ HELPERS
@@ -154,10 +155,11 @@ def facepp_get_or_create_faceset(user_id, faceset_token):
 
 def facepp_add_face(faceset_token, face_token):
     try:
-        requests.post(f"{FACEPP_FACESET}/addface", data={
+        resp = requests.post(f"{FACEPP_FACESET}/addface", data={
             "api_key": FACEPP_KEY, "api_secret": FACEPP_SECRET,
             "faceset_token": faceset_token, "face_tokens": face_token,
         }, timeout=15)
+        print(f"[Face++] AddFace: {resp.json()}")
     except Exception as e:
         print(f"[Face++] AddFace: {e}")
 
@@ -168,7 +170,9 @@ def facepp_search(faceset_token, b64):
             "api_key": FACEPP_KEY, "api_secret": FACEPP_SECRET,
             "faceset_token": faceset_token,
         }, files={"image_file": ("face.jpg", jpeg, "image/jpeg")}, timeout=15)
-        results = resp.json().get("results", [])
+        data = resp.json()
+        print(f"[Face++] Search: {data}")
+        results = data.get("results", [])
         if results:
             return results[0]["face_token"], results[0]["confidence"]
         return None, 0
@@ -176,58 +180,51 @@ def facepp_search(faceset_token, b64):
         print(f"[Face++] Search: {e}")
         return None, 0
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# GOOGLE VISION HELPERS
-# ═══════════════════════════════════════════════════════════════════════════════
-def vision_ocr(b64):
+def facepp_objects(b64):
+    """Use Face++ general recognition to detect objects/scenes."""
     try:
-        payload = {"requests": [{"image": {"content": clean_b64(b64)},
-            "features": [{"type": "TEXT_DETECTION", "maxResults": 1}]}]}
-        resp = requests.post(VISION_URL, json=payload, timeout=15)
-        annotation = resp.json()["responses"][0].get("fullTextAnnotation")
-        if annotation:
-            return annotation["text"].strip().replace("\n", " ")
-        return ""
-    except Exception as e:
-        print(f"[Vision] OCR: {e}")
-        return ""
-
-def vision_objects(b64):
-    try:
-        payload = {"requests": [{"image": {"content": clean_b64(b64)},
-            "features": [
-                {"type": "OBJECT_LOCALIZATION", "maxResults": 15},
-                {"type": "LABEL_DETECTION", "maxResults": 10}
-            ]}]}
-        resp = requests.post(VISION_URL, json=payload, timeout=15)
+        jpeg = b64_to_jpeg(b64)
+        resp = requests.post(FACEPP_RECOGNIZE, data={
+            "api_key": FACEPP_KEY, "api_secret": FACEPP_SECRET,
+        }, files={"image_file": ("img.jpg", jpeg, "image/jpeg")}, timeout=15)
         data = resp.json()
-        print(f"[Vision] Object response: {json.dumps(data)[:500]}")
-
-        # Check for API errors
-        if "error" in data:
-            print(f"[Vision] API Error: {data['error']}")
-            return []
-
-        response = data.get("responses", [{}])[0]
-
-        # Check for response-level errors
-        if "error" in response:
-            print(f"[Vision] Response Error: {response['error']}")
-            return []
-
-        # Object localization (lower threshold to 0.3)
-        objects = [o["name"] for o in response.get("localizedObjectAnnotations", []) if o["score"] > 0.3]
-
-        # Label detection fallback (lower threshold to 0.5)
-        labels = [l["description"] for l in response.get("labelAnnotations", []) if l["score"] > 0.5]
-
-        # Combine both
-        combined = list(dict.fromkeys(objects + labels))
-        print(f"[Vision] Detected: {combined}")
-        return combined[:8]
+        print(f"[Face++] Objects: {json.dumps(data)[:400]}")
+        results = data.get("result", [])
+        objects = [r["value"] for r in results if r.get("score", 0) > 0.3]
+        return objects[:8]
     except Exception as e:
-        print(f"[Vision] Objects exception: {e}")
+        print(f"[Face++] Objects: {e}")
         return []
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OCR.SPACE
+# ═══════════════════════════════════════════════════════════════════════════════
+def ocr_space(b64):
+    try:
+        jpeg = b64_to_jpeg(b64)
+        b64_str = base64.b64encode(jpeg).decode()
+        resp = requests.post(OCRSPACE_URL, data={
+            "apikey":   OCRSPACE_KEY,
+            "base64Image": f"data:image/jpeg;base64,{b64_str}",
+            "language": "eng",
+            "isOverlayRequired": False,
+            "detectOrientation": True,
+            "scale": True,
+            "OCREngine": 2,
+        }, timeout=30)
+        data = resp.json()
+        print(f"[OCR] Response: {json.dumps(data)[:300]}")
+        if data.get("IsErroredOnProcessing"):
+            print(f"[OCR] Error: {data.get('ErrorMessage')}")
+            return ""
+        results = data.get("ParsedResults", [])
+        if results:
+            text = results[0].get("ParsedText", "").strip()
+            return text.replace("\r\n", " ").replace("\n", " ")
+        return ""
+    except Exception as e:
+        print(f"[OCR] Exception: {e}")
+        return ""
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FLASK APP
@@ -276,7 +273,7 @@ def forget():
 
 @app.route("/register", methods=["POST"])
 def register():
-    data = request.get_json()
+    data     = request.get_json()
     username = data.get("username", "").strip().lower()
     b64      = data.get("image", "")
     name     = data.get("name", "").strip().title()
@@ -293,7 +290,7 @@ def register():
     face_token = facepp_detect(b64)
     if not face_token:
         return jsonify({"success": False,
-            "message": "No face detected. Make sure the face is clearly visible and well lit."})
+            "message": "No face detected. Make sure face is clearly visible and well lit."})
 
     faceset_token = facepp_get_or_create_faceset(user_id, faceset_token)
     if not faceset_token:
@@ -305,9 +302,9 @@ def register():
 
 @app.route("/face", methods=["POST"])
 def face_endpoint():
-    data = request.get_json()
+    data     = request.get_json()
     username = data.get("username", "").strip().lower()
-    b64 = data.get("image", "")
+    b64      = data.get("image", "")
     if not b64:
         return jsonify({"error": "No image."}), 400
 
@@ -351,15 +348,15 @@ def face_endpoint():
     return jsonify({"found": False, "is_new": False,
         "message": "No face detected. Point camera at a face."})
 
-# ── OCR (job-based so no timeout) ─────────────────────────────────────────────
-OCR_JOBS = {}
+# ── OCR ───────────────────────────────────────────────────────────────────────
+OCR_JOBS  = {}
 OCR_LOCK_J = threading.Lock()
 
 def run_ocr_job(job_id, b64):
     try:
-        text = vision_ocr(b64)
+        text = ocr_space(b64)
         result = ({"text": text, "message": f"Text detected: {text}"} if text
-                  else {"text": "", "message": "No text found. Try holding the camera closer."})
+                  else {"text": "", "message": "No text found. Try holding the camera closer to the text."})
         with OCR_LOCK_J:
             OCR_JOBS[job_id] = {"status": "done", "result": result}
     except Exception as e:
@@ -390,16 +387,17 @@ def ocr_result(job_id):
         OCR_JOBS.pop(job_id, None)
     return jsonify({"status": "done", **job["result"]})
 
+# ── Object detection ──────────────────────────────────────────────────────────
 @app.route("/object", methods=["POST"])
 def object_endpoint():
     data = request.get_json()
     b64  = data.get("image", "")
     if not b64:
         return jsonify({"error": "No image."}), 400
-    labels = vision_objects(b64)
+    labels = facepp_objects(b64)
     if labels:
         return jsonify({"objects": labels, "message": f"I can see: {', '.join(labels[:6])}."})
-    return jsonify({"objects": [], "message": "Nothing detected. Make sure the object is well lit and in focus. Try pointing at a bottle, phone, or laptop."})
+    return jsonify({"objects": [], "message": "No objects detected. Try pointing at a bottle, phone, or book."})
 
 # ═══════════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
@@ -408,5 +406,5 @@ if __name__ == "__main__":
         local_ip = socket.gethostbyname(socket.gethostname())
     except:
         local_ip = "127.0.0.1"
-    print(f"\n{'='*50}\n  VisionMate Server (Lightweight API Edition)\n  http://{local_ip}:5000\n{'='*50}\n")
+    print(f"\n{'='*50}\n  VisionMate Server\n  http://{local_ip}:5000\n{'='*50}\n")
     app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
