@@ -7,7 +7,6 @@ Runs on Render free tier — no heavy models, fast responses
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import sqlite3
-import numpy as np
 import json
 import base64
 import threading
