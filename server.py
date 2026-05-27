@@ -196,17 +196,37 @@ def vision_objects(b64):
     try:
         payload = {"requests": [{"image": {"content": clean_b64(b64)},
             "features": [
-                {"type": "OBJECT_LOCALIZATION", "maxResults": 10},
-                {"type": "LABEL_DETECTION", "maxResults": 5}
+                {"type": "OBJECT_LOCALIZATION", "maxResults": 15},
+                {"type": "LABEL_DETECTION", "maxResults": 10}
             ]}]}
         resp = requests.post(VISION_URL, json=payload, timeout=15)
-        response = resp.json()["responses"][0]
-        objects = [o["name"] for o in response.get("localizedObjectAnnotations", []) if o["score"] > 0.5]
-        if not objects:
-            objects = [l["description"] for l in response.get("labelAnnotations", []) if l["score"] > 0.7]
-        return list(dict.fromkeys(objects))
+        data = resp.json()
+        print(f"[Vision] Object response: {json.dumps(data)[:500]}")
+
+        # Check for API errors
+        if "error" in data:
+            print(f"[Vision] API Error: {data['error']}")
+            return []
+
+        response = data.get("responses", [{}])[0]
+
+        # Check for response-level errors
+        if "error" in response:
+            print(f"[Vision] Response Error: {response['error']}")
+            return []
+
+        # Object localization (lower threshold to 0.3)
+        objects = [o["name"] for o in response.get("localizedObjectAnnotations", []) if o["score"] > 0.3]
+
+        # Label detection fallback (lower threshold to 0.5)
+        labels = [l["description"] for l in response.get("labelAnnotations", []) if l["score"] > 0.5]
+
+        # Combine both
+        combined = list(dict.fromkeys(objects + labels))
+        print(f"[Vision] Detected: {combined}")
+        return combined[:8]
     except Exception as e:
-        print(f"[Vision] Objects: {e}")
+        print(f"[Vision] Objects exception: {e}")
         return []
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -379,7 +399,7 @@ def object_endpoint():
     labels = vision_objects(b64)
     if labels:
         return jsonify({"objects": labels, "message": f"I can see: {', '.join(labels[:6])}."})
-    return jsonify({"objects": [], "message": "No objects detected. Try pointing at something closer."})
+    return jsonify({"objects": [], "message": "Nothing detected. Make sure the object is well lit and in focus. Try pointing at a bottle, phone, or laptop."})
 
 # ═══════════════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
