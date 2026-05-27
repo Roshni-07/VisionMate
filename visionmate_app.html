@@ -23,9 +23,7 @@ body::before{content:'';position:fixed;inset:0;background-image:radial-gradient(
 .login-input:focus{border-color:var(--face);}
 .login-input::placeholder{color:var(--muted);}
 .btn-login{width:100%;padding:15px;border-radius:12px;background:linear-gradient(135deg,var(--face),#0066aa);border:none;color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:var(--sans);}
-.login-server{width:100%;display:flex;flex-direction:column;gap:8px;}
-.login-server label{font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;}
-.login-server input{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-size:13px;font-family:var(--mono);outline:none;}
+
 header{position:sticky;top:0;z-index:100;background:rgba(10,15,30,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;}
 .logo{display:flex;align-items:center;gap:10px;}
 .logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--face),var(--reg));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;}
@@ -114,11 +112,7 @@ main{position:relative;z-index:1;padding:16px;display:flex;flex-direction:column
   <div class="login-box">
     <div class="login-logo">👁️</div>
     <div class="login-title">VisionMate</div>
-    <div class="login-sub">AI-Powered Assistive System<br/>Enter your name to access your personal memory.</div>
-    <div class="login-server">
-      <label>Server URL</label>
-      <input type="text" id="login-server-url" placeholder="http://192.168.x.x:5000" inputmode="url"/>
-    </div>
+    <div class="login-sub">AI-Powered Assistive System<br/>Enter your name to get started.</div>
     <input type="text" class="login-input" id="login-username" placeholder="Enter your name (e.g. Roshni)" autocomplete="off"/>
     <button class="btn-login" onclick="doLogin()">Enter VisionMate</button>
   </div>
@@ -202,12 +196,7 @@ main{position:relative;z-index:1;padding:16px;display:flex;flex-direction:column
   <div class="modal">
     <div class="modal-handle"></div>
     <div class="modal-title" style="color:var(--face);">Settings</div>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      <label>Server URL</label>
-      <input type="text" id="settings-url" placeholder="http://192.168.x.x:5000"/>
-    </div>
-    <button class="btn-save" onclick="saveSettings()">Save &amp; Reconnect</button>
-    <button class="btn-cancel" style="border-radius:12px;padding:13px" onclick="logOut()">🚪 Log Out</button>
+    <button class="btn-save" onclick="logOut()">🚪 Log Out</button>
     <div class="section-title">My Registered Persons</div>
     <div class="persons-list" id="persons-list"></div>
     <button class="btn-cancel" style="border-radius:12px;padding:13px" onclick="closeSettings()">Close</button>
@@ -217,39 +206,35 @@ main{position:relative;z-index:1;padding:16px;display:flex;flex-direction:column
 <div id="toast"></div>
 
 <script>
-let SERVER=localStorage.getItem('vm_server')||'';
+const SERVER='https://visionmate-zi3m.onrender.com';
 let USERNAME=localStorage.getItem('vm_username')||'';
 let USER_ID=null,lastMessage='Point the camera and tap a button below.',isLoading=false,stream=null;
 
 window.addEventListener('load',()=>{
-  if(SERVER) document.getElementById('login-server-url').value=SERVER;
   if(USERNAME) document.getElementById('login-username').value=USERNAME;
-  if(SERVER&&USERNAME) doLogin(true);
+  if(USERNAME) doLogin(true);
 });
 
 async function doLogin(silent=false){
-  const url=document.getElementById('login-server-url').value.trim().replace(/\/$/,'');
   const name=document.getElementById('login-username').value.trim();
-  if(!url){toast('Enter server URL.');return;}
   if(!name){toast('Enter your name.');return;}
-  SERVER=url; USERNAME=name.toLowerCase();
+  USERNAME=name.toLowerCase();
   if(!silent) toast('Connecting...');
   try{
     const res=await fetch(`${SERVER}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:USERNAME}),signal:AbortSignal.timeout(8000)});
     const data=await res.json();
     if(data.success){
       USER_ID=data.user_id;
-      localStorage.setItem('vm_server',SERVER);
       localStorage.setItem('vm_username',USERNAME);
       document.getElementById('login-screen').classList.add('hidden');
       document.getElementById('user-badge').textContent=USERNAME;
       startCamera(); checkStatus();
       setInterval(checkStatus,15000);
       speak(data.message);
-    }else{toast('Login failed.');}
+    }else{toast('Login failed. Try again.');}
   }catch(e){
     if(silent){document.getElementById('login-screen').classList.remove('hidden');}
-    else{toast('Cannot reach server. Check URL and WiFi.');}
+    else{toast('Cannot reach server. Check your internet connection.');}
   }
 }
 
@@ -436,18 +421,10 @@ async function saveRegister(){
 }
 
 function openSettings(){
-  document.getElementById('settings-url').value=SERVER;
   document.getElementById('settings-modal').classList.remove('hidden');
   loadPersonsList();
 }
 function closeSettings(){document.getElementById('settings-modal').classList.add('hidden');}
-async function saveSettings(){
-  const url=document.getElementById('settings-url').value.trim().replace(/\/$/,'');
-  if(!url){toast('Enter a valid URL.');return;}
-  SERVER=url; localStorage.setItem('vm_server',SERVER);
-  await checkStatus();
-  toast(document.getElementById('status-dot').classList.contains('online')?'Connected!':'Cannot connect.');
-}
 async function loadPersonsList(){
   const list=document.getElementById('persons-list');
   try{
