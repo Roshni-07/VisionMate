@@ -1,11 +1,5 @@
 flask
 flask-cors
-opencv-contrib-python-headless
-easyocr
-torch --index-url https://download.pytorch.org/whl/cpu
-torchvision --index-url https://download.pytorch.org/whl/cpu
-numpy<2
+requests
 pillow
-pandas
-seaborn
 gunicorn
