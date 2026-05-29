@@ -1,456 +1,732 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<meta name="theme-color" content="#0a0f1e"/>
-<meta name="mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>VisionMate</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
 <style>
-:root{--bg:#0a0f1e;--surface:#111827;--card:#1a2235;--border:#1e3a5f;--face:#00d4ff;--ocr:#00ff9d;--obj:#ff6b35;--reg:#a78bfa;--warn:#fbbf24;--text:#e2e8f0;--muted:#64748b;--mono:'Space Mono',monospace;--sans:'DM Sans',sans-serif;}
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100dvh;overflow-x:hidden;user-select:none;}
-body::before{content:'';position:fixed;inset:0;background-image:radial-gradient(ellipse 80% 60% at 20% 10%,rgba(0,212,255,.06) 0%,transparent 60%),radial-gradient(ellipse 60% 80% at 80% 90%,rgba(167,139,250,.05) 0%,transparent 60%),linear-gradient(rgba(0,212,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.03) 1px,transparent 1px);background-size:100% 100%,100% 100%,40px 40px,40px 40px;pointer-events:none;z-index:0;}
-#login-screen{position:fixed;inset:0;z-index:500;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;}
-#login-screen.hidden{display:none;}
-.login-box{width:100%;max-width:360px;display:flex;flex-direction:column;gap:20px;align-items:center;}
-.login-logo{width:72px;height:72px;background:linear-gradient(135deg,var(--face),var(--reg));border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:36px;}
-.login-title{font-family:var(--mono);font-size:22px;font-weight:700;background:linear-gradient(135deg,var(--face),var(--reg));-webkit-background-clip:text;-webkit-text-fill-color:transparent;text-align:center;}
-.login-sub{font-size:13px;color:var(--muted);text-align:center;line-height:1.5;}
-.login-input{width:100%;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:12px;padding:14px 16px;color:var(--text);font-size:16px;font-family:var(--sans);outline:none;text-align:center;transition:border-color .2s;}
-.login-input:focus{border-color:var(--face);}
-.login-input::placeholder{color:var(--muted);}
-.btn-login{width:100%;padding:15px;border-radius:12px;background:linear-gradient(135deg,var(--face),#0066aa);border:none;color:#fff;font-size:16px;font-weight:700;cursor:pointer;font-family:var(--sans);}
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: #1e1e2e;
+    --accent: #6ee7f7;
+    --accent2: #a78bfa;
+    --danger: #f87171;
+    --success: #4ade80;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
 
-header{position:sticky;top:0;z-index:100;background:rgba(10,15,30,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:12px 18px;display:flex;align-items:center;justify-content:space-between;}
-.logo{display:flex;align-items:center;gap:10px;}
-.logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--face),var(--reg));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;}
-.logo-text{font-family:var(--mono);font-size:15px;font-weight:700;background:linear-gradient(135deg,var(--face),var(--reg));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
-.logo-sub{font-size:9px;color:var(--muted);font-family:var(--mono);letter-spacing:.08em;margin-top:-2px;}
-.header-right{display:flex;align-items:center;gap:8px;}
-.user-badge{font-size:11px;color:var(--reg);font-family:var(--mono);padding:4px 10px;border-radius:20px;border:1px solid rgba(167,139,250,.3);background:rgba(167,139,250,.08);}
-.server-badge{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);font-family:var(--mono);cursor:pointer;padding:5px 10px;border-radius:20px;border:1px solid var(--border);background:rgba(255,255,255,.03);}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--muted);}
-.dot.online{background:var(--ocr);box-shadow:0 0 6px var(--ocr);}
-.dot.offline{background:var(--obj);}
-main{position:relative;z-index:1;padding:16px;display:flex;flex-direction:column;gap:14px;}
-.viewfinder{position:relative;width:100%;aspect-ratio:4/3;border-radius:16px;overflow:hidden;border:1px solid var(--border);background:#000;}
-#camera{width:100%;height:100%;object-fit:cover;}
-.vf-overlay{position:absolute;inset:0;pointer-events:none;}
-.vf-overlay::before,.vf-overlay::after{content:'';position:absolute;width:24px;height:24px;border-color:var(--face);border-style:solid;opacity:.7;}
-.vf-overlay::before{top:12px;left:12px;border-width:2px 0 0 2px;border-radius:4px 0 0 0;}
-.vf-overlay::after{bottom:12px;right:12px;border-width:0 2px 2px 0;border-radius:0 0 4px 0;}
-.vf-corner-tr,.vf-corner-bl{position:absolute;width:24px;height:24px;border-color:var(--face);border-style:solid;opacity:.7;}
-.vf-corner-tr{top:12px;right:12px;border-width:2px 2px 0 0;border-radius:0 4px 0 0;}
-.vf-corner-bl{bottom:12px;left:12px;border-width:0 0 2px 2px;border-radius:0 0 0 4px;}
-.vf-status{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);backdrop-filter:blur(6px);border-radius:20px;padding:4px 12px;font-size:11px;font-family:var(--mono);color:var(--face);letter-spacing:.06em;border:1px solid rgba(0,212,255,.2);}
-.scanning-ring{position:absolute;inset:0;border-radius:16px;border:2px solid transparent;pointer-events:none;opacity:0;transition:opacity .3s;}
-.scanning-ring.active{opacity:1;animation:scanRing 1.2s ease-in-out infinite;}
-@keyframes scanRing{0%{border-color:rgba(0,212,255,.6);box-shadow:inset 0 0 20px rgba(0,212,255,.1);}50%{border-color:rgba(0,212,255,.1);}100%{border-color:rgba(0,212,255,.6);box-shadow:inset 0 0 20px rgba(0,212,255,.1);}}
-.result-card{border-radius:14px;border:1px solid var(--border);background:var(--card);padding:16px;min-height:72px;display:flex;align-items:flex-start;gap:12px;transition:all .3s;animation:fadeIn .3s ease;}
-@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.result-icon{width:40px;height:40px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;}
-.result-icon.face{background:rgba(0,212,255,.12);}
-.result-icon.ocr{background:rgba(0,255,157,.12);}
-.result-icon.object{background:rgba(255,107,53,.12);}
-.result-icon.reg{background:rgba(167,139,250,.12);}
-.result-icon.error{background:rgba(251,191,36,.12);}
-.result-body{flex:1;}
-.result-label{font-size:10px;font-family:var(--mono);letter-spacing:.1em;color:var(--muted);margin-bottom:4px;text-transform:uppercase;}
-.result-label.face{color:var(--face);}
-.result-label.ocr{color:var(--ocr);}
-.result-label.object{color:var(--obj);}
-.result-label.reg{color:var(--reg);}
-.result-text{font-size:15px;line-height:1.5;color:var(--text);}
-.result-sub{font-size:12px;color:var(--muted);margin-top:4px;}
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.btn{border:none;border-radius:14px;padding:16px 12px;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .15s;position:relative;overflow:hidden;}
-.btn:active{transform:scale(.97);}
-.btn-icon{font-size:26px;}
-.btn-face{background:rgba(0,212,255,.1);color:var(--face);border:1px solid rgba(0,212,255,.25);}
-.btn-ocr{background:rgba(0,255,157,.1);color:var(--ocr);border:1px solid rgba(0,255,157,.25);}
-.btn-object{background:rgba(255,107,53,.1);color:var(--obj);border:1px solid rgba(255,107,53,.25);}
-.btn-reg{background:rgba(167,139,250,.1);color:var(--reg);border:1px solid rgba(167,139,250,.25);}
-.btn.loading .btn-icon{animation:spin 1s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg)}}
-.speak-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:12px;color:var(--muted);font-size:13px;cursor:pointer;font-family:var(--sans);}
-.speak-btn.speaking{border-color:var(--ocr);color:var(--ocr);background:rgba(0,255,157,.07);}
-.section-title{font-size:11px;color:var(--muted);font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:-6px;}
-.modal-bg{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.75);backdrop-filter:blur(6px);display:flex;align-items:flex-end;animation:fadeIn .2s ease;}
-.modal-bg.hidden{display:none;}
-.modal{width:100%;background:var(--surface);border-radius:22px 22px 0 0;border:1px solid var(--border);padding:24px 20px 40px;display:flex;flex-direction:column;gap:16px;animation:slideUp .3s cubic-bezier(.34,1.56,.64,1);}
-@keyframes slideUp{from{transform:translateY(100%)}to{transform:none}}
-.modal-handle{width:40px;height:4px;border-radius:2px;background:var(--border);margin:0 auto -8px;}
-.modal-title{font-size:17px;font-weight:600;text-align:center;font-family:var(--mono);}
-.modal-preview{width:100%;aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:#000;border:1px solid var(--border);}
-.modal-preview img{width:100%;height:100%;object-fit:cover;}
-.modal label{font-size:12px;color:var(--muted);font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;margin-bottom:-8px;}
-.modal input{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;padding:13px 14px;color:var(--text);font-size:15px;font-family:var(--sans);width:100%;outline:none;}
-.modal input:focus{border-color:var(--reg);}
-.modal input::placeholder{color:var(--muted);}
-.modal-btns{display:flex;gap:10px;}
-.btn-cancel{flex:1;padding:14px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--muted);font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans);}
-.btn-save{flex:2;padding:14px;border-radius:12px;background:linear-gradient(135deg,var(--reg),#7c3aed);border:none;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:var(--sans);}
-.persons-list{display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;}
-.person-row{display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,.04);border-radius:10px;padding:10px 12px;border:1px solid var(--border);}
-.person-name{font-size:14px;font-weight:600;}
-.person-desc{font-size:11px;color:var(--muted);}
-.btn-forget{background:rgba(255,107,53,.15);border:1px solid rgba(255,107,53,.3);color:var(--obj);border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:var(--sans);}
-#toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(26,34,53,.95);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:20px;padding:10px 20px;font-size:13px;color:var(--text);font-family:var(--mono);z-index:500;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;}
-#toast.show{opacity:1;}
-.hidden{display:none!important;}
-#reg-canvas,#snap-canvas{display:none;}
+  /* ── Login Screen ── */
+  #loginScreen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 32px 24px;
+    width: 100%;
+  }
+  .logo {
+    font-size: 3rem;
+    margin-bottom: 8px;
+  }
+  .brand {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 6px;
+  }
+  .tagline {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 48px;
+    text-align: center;
+  }
+  .input-group {
+    width: 100%;
+    max-width: 340px;
+    margin-bottom: 16px;
+  }
+  .input-group label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .input-group input {
+    width: 100%;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    color: var(--text);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-group input:focus {
+    border-color: var(--accent);
+  }
+  .btn-primary {
+    width: 100%;
+    max-width: 340px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 14px;
+    padding: 16px;
+    color: #0a0a0f;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+  .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
+
+  /* ── Main App ── */
+  #mainApp { display: none; flex-direction: column; width: 100%; max-width: 480px; min-height: 100vh; }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 10;
+  }
+  .header-title { font-weight: 700; font-size: 1.1rem; }
+  .user-badge {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    color: var(--accent);
+  }
+  .logout-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 4px 8px;
+  }
+
+  /* Camera */
+  .camera-wrap {
+    position: relative;
+    width: 100%;
+    background: #000;
+    overflow: hidden;
+  }
+  #videoEl {
+    width: 100%;
+    display: block;
+    max-height: 52vw;
+    object-fit: cover;
+  }
+  #canvas { display: none; }
+  .flash {
+    position: absolute;
+    inset: 0;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.05s;
+  }
+  .flash.active { opacity: 0.7; }
+
+  /* Auto-mode badge */
+  .auto-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(110,231,247,0.15);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: none;
+  }
+  .auto-badge.visible { display: block; }
+
+  /* Result box */
+  .result-box {
+    margin: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    min-height: 72px;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: var(--text);
+    position: relative;
+  }
+  .result-box.speaking { border-color: var(--accent); }
+  .result-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+  .spinner {
+    display: inline-block;
+    width: 18px; height: 18px;
+    border: 2.5px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Action grid */
+  .action-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 16px 16px;
+  }
+  .action-btn {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 12px;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: border-color 0.2s, background 0.2s, transform 0.1s;
+    text-align: center;
+  }
+  .action-btn:active { transform: scale(0.96); }
+  .action-btn .icon { font-size: 1.8rem; }
+  .action-btn.face-btn:hover, .action-btn.face-btn:focus { border-color: var(--accent); }
+  .action-btn.ocr-btn:hover, .action-btn.ocr-btn:focus { border-color: #fbbf24; }
+  .action-btn.obj-btn:hover, .action-btn.obj-btn:focus { border-color: var(--accent2); }
+  .action-btn.reg-btn:hover, .action-btn.reg-btn:focus { border-color: var(--success); }
+
+  /* Controls row */
+  .controls-row {
+    display: flex;
+    gap: 10px;
+    padding: 0 16px 12px;
+    align-items: center;
+  }
+  .ctrl-btn {
+    flex: 1;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 8px;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: border-color 0.2s;
+  }
+  .ctrl-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(110,231,247,0.07);
+  }
+  .mic-btn.listening {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: rgba(248,113,113,0.07);
+    animation: pulse-border 1s infinite;
+  }
+  @keyframes pulse-border {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(248,113,113,0); }
+  }
+
+  /* Register modal */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 24px 24px 0 0;
+    padding: 28px 24px 40px;
+    width: 100%;
+    max-width: 480px;
+  }
+  .modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; }
+  .modal .input-group { max-width: 100%; }
+  .modal-btns { display: flex; gap: 12px; margin-top: 20px; }
+  .btn-secondary {
+    flex: 1;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .btn-confirm {
+    flex: 2;
+    background: linear-gradient(135deg, var(--success), #16a34a);
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* Persons list */
+  .persons-section { padding: 0 16px 24px; }
+  .persons-section h4 { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+  .person-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 6px 14px;
+    margin: 4px 4px 4px 0;
+    font-size: 0.82rem;
+  }
+  .person-chip .del { cursor: pointer; color: var(--danger); font-size: 0.9rem; margin-left: 4px; }
+
+  /* Voice hint */
+  .voice-hint {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-align: center;
+    padding: 0 16px 16px;
+    line-height: 1.6;
+  }
 </style>
 </head>
 <body>
-<canvas id="reg-canvas"></canvas>
-<canvas id="snap-canvas"></canvas>
 
-<div id="login-screen">
-  <div class="login-box">
-    <div class="login-logo">👁️</div>
-    <div class="login-title">VisionMate</div>
-    <div class="login-sub">AI-Powered Assistive System<br/>Enter your name to get started.</div>
-    <input type="text" class="login-input" id="login-username" placeholder="Enter your name (e.g. Roshni)" autocomplete="off"/>
-    <button class="btn-login" onclick="doLogin()">Enter VisionMate</button>
+<!-- ── LOGIN ── -->
+<div id="loginScreen">
+  <div class="logo">👁️</div>
+  <div class="brand">VisionMate</div>
+  <div class="tagline">AI assistant for vision &amp; memory</div>
+  <div class="input-group">
+    <label>Your Name</label>
+    <input type="text" id="nameInput" placeholder="Enter your name" autocomplete="off" />
+  </div>
+  <button class="btn-primary" onclick="doLogin()">Get Started</button>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="mainApp">
+  <div class="header">
+    <div class="header-title">👁️ VisionMate</div>
+    <div class="user-badge" id="userBadge"></div>
+    <button class="logout-btn" onclick="doLogout()" title="Logout">⏻</button>
+  </div>
+
+  <div class="camera-wrap">
+    <video id="videoEl" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div class="flash" id="flash"></div>
+    <div class="auto-badge" id="autoBadge">⚡ AUTO</div>
+  </div>
+
+  <div class="result-box" id="resultBox">
+    <div class="result-label">Result</div>
+    <div id="resultText">Tap a button below to begin.</div>
+  </div>
+
+  <div class="controls-row">
+    <button class="ctrl-btn mic-btn" id="micBtn" onclick="toggleVoice()">🎙️ Voice</button>
+    <button class="ctrl-btn" id="autoBtn" onclick="toggleAuto()">⚡ Auto</button>
+    <button class="ctrl-btn" onclick="showPersons()">👥 Memory</button>
+  </div>
+
+  <div class="action-grid">
+    <button class="action-btn face-btn" onclick="runFace()">
+      <span class="icon">🧑‍🤝‍🧑</span>Who is this?
+    </button>
+    <button class="action-btn ocr-btn" onclick="runOCR()">
+      <span class="icon">📖</span>Read Text
+    </button>
+    <button class="action-btn obj-btn" onclick="runObject()">
+      <span class="icon">🔍</span>What is this?
+    </button>
+    <button class="action-btn reg-btn" onclick="openRegister()">
+      <span class="icon">➕</span>Register Face
+    </button>
+  </div>
+
+  <div class="voice-hint" id="voiceHint" style="display:none">
+    Say: <b>"who is this"</b> · <b>"read the text"</b> · <b>"what is this"</b><br>
+    Or: <b>"update [name]'s details to [description]"</b>
+  </div>
+
+  <div class="persons-section">
+    <h4>Registered People</h4>
+    <div id="personsList">Loading…</div>
   </div>
 </div>
 
-<header>
-  <div class="logo">
-    <div class="logo-icon">👁️</div>
-    <div>
-      <div class="logo-text">VisionMate</div>
-      <div class="logo-sub">BMSIT&amp;M · 2025-26</div>
-    </div>
-  </div>
-  <div class="header-right">
-    <div class="user-badge" id="user-badge">—</div>
-    <div class="server-badge" onclick="openSettings()">
-      <div class="dot" id="status-dot"></div>
-      <span id="status-text">—</span>
-    </div>
-  </div>
-</header>
-
-<main>
-  <div class="viewfinder">
-    <video id="camera" autoplay playsinline muted></video>
-    <div class="vf-overlay">
-      <div class="vf-corner-tr"></div>
-      <div class="vf-corner-bl"></div>
-    </div>
-    <div class="vf-status" id="vf-status">READY</div>
-    <div class="scanning-ring" id="scan-ring"></div>
-  </div>
-  <div class="result-card" id="result-card">
-    <div class="result-icon face">🧠</div>
-    <div class="result-body">
-      <div class="result-label face">VISIONMATE</div>
-      <div class="result-text" id="result-text">Point the camera and tap a button below.</div>
-    </div>
-  </div>
-  <button class="speak-btn" id="speak-btn" onclick="speakResult()">
-    <span>🔊</span><span>Speak Result</span>
-  </button>
-  <div class="section-title">AI Modules</div>
-  <div class="actions">
-    <button class="btn btn-face" id="btn-face" onclick="runFace()">
-      <span class="btn-icon">👤</span><span>Who is this?</span>
-    </button>
-    <button class="btn btn-ocr" id="btn-ocr" onclick="runOCR()">
-      <span class="btn-icon">📖</span><span>Read Text</span>
-    </button>
-    <button class="btn btn-object" id="btn-obj" onclick="runObject()">
-      <span class="btn-icon">🔍</span><span>What is this?</span>
-    </button>
-    <button class="btn btn-reg" id="btn-reg" onclick="openRegister()">
-      <span class="btn-icon">➕</span><span>Register Face</span>
-    </button>
-  </div>
-</main>
-
-<div class="modal-bg hidden" id="reg-modal">
+<!-- ── REGISTER MODAL ── -->
+<div class="modal-overlay" id="registerModal">
   <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title" style="background:linear-gradient(135deg,var(--reg),var(--face));-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Register New Person</div>
-    <div class="modal-preview"><img id="reg-preview" src="" alt=""/></div>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      <label>Name</label>
-      <input type="text" id="reg-name" placeholder="e.g. Riya" autocomplete="off"/>
+    <h3>➕ Register a Face</h3>
+    <div class="input-group">
+      <label>Person's Name</label>
+      <input type="text" id="regName" placeholder="e.g. Riya" />
     </div>
-    <div style="display:flex;flex-direction:column;gap:6px">
+    <div class="input-group" style="margin-top:14px">
       <label>Description (optional)</label>
-      <input type="text" id="reg-desc" placeholder="e.g. my classmate" autocomplete="off"/>
+      <input type="text" id="regDesc" placeholder="e.g. daughter, wears glasses" />
     </div>
     <div class="modal-btns">
-      <button class="btn-cancel" onclick="closeRegister()">Cancel</button>
-      <button class="btn-save" id="btn-save" onclick="saveRegister()">Save Person</button>
+      <button class="btn-secondary" onclick="closeRegister()">Cancel</button>
+      <button class="btn-confirm" onclick="doRegister()">📸 Capture &amp; Register</button>
     </div>
   </div>
 </div>
 
-<div class="modal-bg hidden" id="settings-modal">
-  <div class="modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title" style="color:var(--face);">Settings</div>
-    <button class="btn-save" onclick="logOut()">🚪 Log Out</button>
-    <div class="section-title">My Registered Persons</div>
-    <div class="persons-list" id="persons-list"></div>
-    <button class="btn-cancel" style="border-radius:12px;padding:13px" onclick="closeSettings()">Close</button>
-  </div>
-</div>
-
-<div id="toast"></div>
-
 <script>
-const SERVER='https://visionmate-zi3m.onrender.com';
-let USERNAME=localStorage.getItem('vm_username')||'';
-let USER_ID=null,lastMessage='Point the camera and tap a button below.',isLoading=false,stream=null;
+const SERVER = "https://visionmate-zi3m.onrender.com";
+let userId = null, userName = null;
+let videoStream = null;
+let autoInterval = null;
+let isAutoMode   = false;
+let recognition  = null;
+let isListening  = false;
+let isBusy       = false;
 
-window.addEventListener('load',()=>{
-  if(USERNAME) document.getElementById('login-username').value=USERNAME;
-  if(USERNAME) doLogin(true);
+// ── Login ──────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const name = document.getElementById("nameInput").value.trim();
+  if (!name) return alert("Please enter your name.");
+  try {
+    const res = await fetch(`${SERVER}/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+    const d = await res.json();
+    if (d.error) return alert(d.error);
+    userId = d.user_id;
+    userName = d.name;
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("mainApp").style.display = "flex";
+    document.getElementById("userBadge").textContent = userName;
+    startCamera();
+    loadPersons();
+  } catch (e) {
+    alert("Connection failed. Check internet.");
+  }
+}
+
+function doLogout() {
+  stopAuto();
+  stopVoice();
+  if (videoStream) videoStream.getTracks().forEach(t => t.stop());
+  userId = userName = null;
+  document.getElementById("mainApp").style.display = "none";
+  document.getElementById("loginScreen").style.display = "flex";
+}
+
+document.getElementById("nameInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") doLogin();
 });
 
-async function doLogin(silent=false){
-  const name=document.getElementById('login-username').value.trim();
-  if(!name){toast('Enter your name.');return;}
-  USERNAME=name.toLowerCase();
-  if(!silent) toast('Connecting...');
-  try{
-    const res=await fetch(`${SERVER}/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:USERNAME}),signal:AbortSignal.timeout(8000)});
-    const data=await res.json();
-    if(data.success){
-      USER_ID=data.user_id;
-      localStorage.setItem('vm_username',USERNAME);
-      document.getElementById('login-screen').classList.add('hidden');
-      document.getElementById('user-badge').textContent=USERNAME;
-      startCamera(); checkStatus();
-      setInterval(checkStatus,15000);
-      speak(data.message);
-    }else{toast('Login failed. Try again.');}
-  }catch(e){
-    if(silent){document.getElementById('login-screen').classList.remove('hidden');}
-    else{toast('Cannot reach server. Check your internet connection.');}
+// ── Camera ─────────────────────────────────────────────────────────────────
+async function startCamera() {
+  try {
+    videoStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment", width: { ideal: 1280 } },
+      audio: false
+    });
+    document.getElementById("videoEl").srcObject = videoStream;
+  } catch {
+    alert("Camera access denied. Please allow camera permission.");
   }
 }
 
-function logOut(){
-  localStorage.removeItem('vm_username');
-  USERNAME='';USER_ID=null;
-  closeSettings();
-  document.getElementById('login-screen').classList.remove('hidden');
-  document.getElementById('login-username').value='';
+function captureFrame() {
+  const video  = document.getElementById("videoEl");
+  const canvas = document.getElementById("canvas");
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+  return canvas.toDataURL("image/jpeg", 0.8);
 }
 
-async function startCamera(){
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30}},audio:false});
-    document.getElementById('camera').srcObject=stream;
-  }catch(e){
-    try{
-      stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
-      document.getElementById('camera').srcObject=stream;
-      document.getElementById('camera').style.transform='none';
-    }catch(e2){showResult('error','⚠️','CAMERA','Cannot access camera. Allow camera permission.');}
+function doFlash() {
+  const f = document.getElementById("flash");
+  f.classList.add("active");
+  setTimeout(() => f.classList.remove("active"), 150);
+}
+
+// ── Result Display ─────────────────────────────────────────────────────────
+function setResult(text, loading = false) {
+  const box  = document.getElementById("resultBox");
+  const div  = document.getElementById("resultText");
+  if (loading) {
+    div.innerHTML = `<span class="spinner"></span>${text}`;
+  } else {
+    div.textContent = text;
+    box.classList.add("speaking");
+    speak(text);
+    setTimeout(() => box.classList.remove("speaking"), 3000);
   }
 }
 
-async function captureFrame(id='snap-canvas'){
-  return new Promise(resolve=>{
-    setTimeout(()=>{
-      // Flash effect — white overlay blink
-      const flash = document.createElement('div');
-      flash.style.cssText = 'position:fixed;inset:0;background:white;opacity:0.7;z-index:999;pointer-events:none;transition:opacity 0.3s';
-      document.body.appendChild(flash);
-      setTimeout(()=>{ flash.style.opacity='0'; setTimeout(()=>flash.remove(),300); }, 80);
+function speak(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.95;
+  window.speechSynthesis.speak(u);
+}
 
-      // Capture frame
-      const v=document.getElementById('camera'),c=document.getElementById(id);
-      c.width=v.videoWidth||1280; c.height=v.videoHeight||720;
-      const ctx=c.getContext('2d');
-      ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
-      ctx.drawImage(v,0,0,c.width,c.height);
-
-      // Show captured preview briefly in viewfinder
-      document.getElementById('vf-status').textContent='📸 CAPTURED';
-      setTimeout(()=>{ document.getElementById('vf-status').textContent='SCANNING…'; },800);
-
-      resolve(c.toDataURL('image/jpeg',0.92));
-    },400);
+// ── API Calls ──────────────────────────────────────────────────────────────
+async function apiPost(endpoint, body) {
+  const res = await fetch(`${SERVER}${endpoint}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
   });
+  return res.json();
 }
 
-async function apiPost(endpoint,body){
-  const ms=endpoint==='ocr'?30000:15000;
-  const ctrl=new AbortController();
-  const t=setTimeout(()=>ctrl.abort(),ms);
-  try{
-    const res=await fetch(`${SERVER}/${endpoint}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,username:USERNAME}),signal:ctrl.signal});
-    clearTimeout(t);
-    if(!res.ok) throw new Error(`Server error ${res.status}`);
-    return res.json();
-  }catch(e){clearTimeout(t);if(e.name==='AbortError') throw new Error('timeout');throw e;}
+async function runFace() {
+  if (isBusy) return;
+  isBusy = true;
+  doFlash();
+  const image = captureFrame();
+  setResult("Identifying faces…", true);
+  try {
+    const d = await apiPost("/face", { user_id: userId, image });
+    setResult(d.result || d.error || "No result.");
+  } catch { setResult("Network error."); }
+  isBusy = false;
 }
 
-async function checkStatus(){
-  const dot=document.getElementById('status-dot'),txt=document.getElementById('status-text');
-  try{
-    await fetch(`${SERVER}/status`,{signal:AbortSignal.timeout(4000)});
-    dot.className='dot online'; txt.textContent='Online';
-  }catch{dot.className='dot offline'; txt.textContent='Offline';}
+async function runOCR() {
+  if (isBusy) return;
+  isBusy = true;
+  doFlash();
+  const image = captureFrame();
+  setResult("Reading text…", true);
+  try {
+    const d = await apiPost("/ocr", { image });
+    setResult(d.result || d.error || "No text found.");
+  } catch { setResult("Network error."); }
+  isBusy = false;
 }
 
-function speak(text){
-  if(!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text);
-  u.rate=0.95; u.pitch=1.0; u.lang='en-IN';
-  const btn=document.getElementById('speak-btn');
-  btn.classList.add('speaking');
-  u.onend=()=>btn.classList.remove('speaking');
-  speechSynthesis.speak(u);
-}
-function speakResult(){speak(lastMessage);}
-
-function showResult(type,icon,label,text,sub=''){
-  const card=document.getElementById('result-card');
-  card.querySelector('.result-icon').className=`result-icon ${type}`;
-  card.querySelector('.result-icon').textContent=icon;
-  card.querySelector('.result-label').className=`result-label ${type}`;
-  card.querySelector('.result-label').textContent=label;
-  document.getElementById('result-text').textContent=text;
-  lastMessage=text;
-  let rs=card.querySelector('.result-sub');
-  if(sub){if(!rs){rs=document.createElement('div');rs.className='result-sub';card.querySelector('.result-body').appendChild(rs);}rs.textContent=sub;}
-  else if(rs) rs.textContent='';
-  card.style.animation='none'; card.offsetHeight; card.style.animation='';
-  speak(text);
+async function runObject() {
+  if (isBusy) return;
+  isBusy = true;
+  doFlash();
+  const image = captureFrame();
+  setResult("Identifying objects…", true);
+  try {
+    const d = await apiPost("/object", { image });
+    setResult(d.result || d.error || "Could not identify.");
+  } catch { setResult("Network error."); }
+  isBusy = false;
 }
 
-function setLoading(id,v){
-  document.getElementById(id).classList.toggle('loading',v);
-  document.getElementById('scan-ring').classList.toggle('active',v);
-  document.getElementById('vf-status').textContent=v?'SCANNING…':'READY';
-  isLoading=v;
+// ── Register ───────────────────────────────────────────────────────────────
+function openRegister() {
+  document.getElementById("registerModal").classList.add("open");
+}
+function closeRegister() {
+  document.getElementById("registerModal").classList.remove("open");
 }
 
-function toast(msg,dur=2500){
-  const t=document.getElementById('toast');
-  t.textContent=msg; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),dur);
+async function doRegister() {
+  const name = document.getElementById("regName").value.trim();
+  const desc = document.getElementById("regDesc").value.trim();
+  if (!name) return alert("Enter a name.");
+  doFlash();
+  const image = captureFrame();
+  closeRegister();
+  setResult(`Registering ${name}…`, true);
+  try {
+    const d = await apiPost("/register", { user_id: userId, name, image, description: desc });
+    setResult(d.result || d.error || "Done.");
+    loadPersons();
+  } catch { setResult("Network error."); }
 }
 
-async function runFace(){
-  if(isLoading) return;
-  setLoading('btn-face',true);
-  try{
-    const image=await captureFrame();
-    const data=await apiPost('face',{image});
-    if(data.found){
-      showResult('face','👤','FACE RECOGNISED',data.message,`Confidence: ${Math.round(data.confidence*100)}% · Met ${data.meet_count}×`);
-    }else if(data.is_new){
-      showResult('reg','❓','NEW PERSON',data.message);
-      setTimeout(()=>openRegister(image),600);
-    }else{
-      showResult('face','👤','FACE',data.message);
+// ── Persons ────────────────────────────────────────────────────────────────
+async function loadPersons() {
+  try {
+    const d = await apiPost("/persons", { user_id: userId });
+    const list = document.getElementById("personsList");
+    if (!d.persons || d.persons.length === 0) {
+      list.textContent = "No people registered yet.";
+      return;
     }
-  }catch(e){showResult('error','⚠️','ERROR',e.message==='timeout'?'Server took too long. Try again.':'Cannot reach server. Check WiFi.');}
-  setLoading('btn-face',false);
+    list.innerHTML = d.persons.map(p =>
+      `<span class="person-chip">
+        🧑 ${p.name}${p.description ? ` — ${p.description}` : ""}
+        <span class="del" onclick="forgetPerson('${p.name}')">✕</span>
+      </span>`
+    ).join("");
+  } catch {}
 }
 
-async function runOCR(){
-  if(isLoading) return;
-  setLoading('btn-ocr',true);
-  showResult('ocr','📖','TEXT READ','Scanning text... please wait.');
-  try{
-    const image=await captureFrame();
-    const job=await apiPost('ocr',{image});
-    if(!job.job_id){showResult('ocr','📖','TEXT READ',job.message||'OCR not available.');setLoading('btn-ocr',false);return;}
-    let attempts=0;
-    const poll=setInterval(async()=>{
-      attempts++;
-      try{
-        const res=await fetch(`${SERVER}/ocr_result/${job.job_id}`);
-        const data=await res.json();
-        if(data.status==='done'){clearInterval(poll);showResult('ocr','📖','TEXT READ',data.message);setLoading('btn-ocr',false);}
-        else if(data.status==='error'){clearInterval(poll);showResult('error','⚠️','OCR ERROR',data.message);setLoading('btn-ocr',false);}
-        else if(attempts>=30){clearInterval(poll);showResult('error','⚠️','TIMEOUT','OCR took too long. Try again.');setLoading('btn-ocr',false);}
-      }catch(e){clearInterval(poll);showResult('error','⚠️','ERROR','Lost connection.');setLoading('btn-ocr',false);}
-    },2000);
-  }catch(e){showResult('error','⚠️','ERROR','Cannot reach server.');setLoading('btn-ocr',false);}
+async function forgetPerson(name) {
+  if (!confirm(`Forget ${name}?`)) return;
+  const d = await apiPost("/forget", { user_id: userId, name });
+  setResult(d.result || d.error);
+  loadPersons();
 }
 
-async function runObject(){
-  if(isLoading) return;
-  setLoading('btn-obj',true);
-  try{
-    const image=await captureFrame();
-    const data=await apiPost('object',{image});
-    showResult('object','🔍','OBJECTS DETECTED',data.message);
-  }catch(e){showResult('error','⚠️','ERROR',e.message==='timeout'?'Detection took too long.':'Cannot reach server.');}
-  setLoading('btn-obj',false);
+function showPersons() {
+  document.querySelector(".persons-section").scrollIntoView({ behavior: "smooth" });
 }
 
-let pendingImage=null;
-async function openRegister(pre=null){
-  pendingImage=pre||await captureFrame('reg-canvas');
-  document.getElementById('reg-preview').src=pendingImage;
-  document.getElementById('reg-name').value='';
-  document.getElementById('reg-desc').value='';
-  document.getElementById('reg-modal').classList.remove('hidden');
-  setTimeout(()=>document.getElementById('reg-name').focus(),400);
-}
-function closeRegister(){document.getElementById('reg-modal').classList.add('hidden');}
-async function saveRegister(){
-  const name=document.getElementById('reg-name').value.trim();
-  const desc=document.getElementById('reg-desc').value.trim();
-  if(!name){toast('Please enter a name.');return;}
-  const btn=document.getElementById('btn-save');
-  btn.textContent='Saving…'; btn.disabled=true;
-  try{
-    const data=await apiPost('register',{image:pendingImage,name,description:desc});
-    closeRegister();
-    showResult(data.success?'reg':'error',data.success?'✅':'⚠️',data.success?'REGISTERED':'FAILED',data.message);
-    if(data.success) toast(`${name} saved to your memory.`);
-  }catch(e){showResult('error','⚠️','ERROR','Cannot reach server.');closeRegister();}
-  btn.textContent='Save Person'; btn.disabled=false;
+// ── Auto Mode ──────────────────────────────────────────────────────────────
+function toggleAuto() {
+  if (isAutoMode) stopAuto();
+  else startAuto();
 }
 
-function openSettings(){
-  document.getElementById('settings-modal').classList.remove('hidden');
-  loadPersonsList();
+function startAuto() {
+  isAutoMode = true;
+  document.getElementById("autoBtn").classList.add("active");
+  document.getElementById("autoBadge").classList.add("visible");
+  autoInterval = setInterval(autoCapture, 5000);
+  setResult("Auto mode on. Scanning every 5 seconds.");
 }
-function closeSettings(){document.getElementById('settings-modal').classList.add('hidden');}
-async function loadPersonsList(){
-  const list=document.getElementById('persons-list');
-  try{
-    const res=await fetch(`${SERVER}/persons`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:USERNAME})});
-    const data=await res.json();
-    if(!data.persons||!data.persons.length){list.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:12px">No persons registered yet.</div>';return;}
-    list.innerHTML=data.persons.map(p=>`<div class="person-row"><div><div class="person-name">${p.name}</div><div class="person-desc">${p.description||'No description'} · Met ${p.meet_count}×</div></div><button class="btn-forget" onclick="forgetPerson('${p.name}')">Forget</button></div>`).join('');
-  }catch{list.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;padding:12px">Server offline.</div>';}
+
+function stopAuto() {
+  isAutoMode = false;
+  clearInterval(autoInterval);
+  document.getElementById("autoBtn").classList.remove("active");
+  document.getElementById("autoBadge").classList.remove("visible");
 }
-async function forgetPerson(name){
-  if(!confirm(`Remove ${name} from your memory?`)) return;
-  try{const data=await apiPost('forget',{name});toast(data.message);loadPersonsList();}
-  catch{toast('Error connecting to server.');}
+
+async function autoCapture() {
+  if (isBusy) return;
+  isBusy = true;
+  const image = captureFrame();
+  // Try face first, then object
+  try {
+    const d = await apiPost("/face", { user_id: userId, image });
+    if (d.count && d.count > 0) {
+      doFlash();
+      setResult(d.result);
+      isBusy = false;
+      return;
+    }
+  } catch {}
+  try {
+    const d = await apiPost("/object", { image });
+    if (d.tags && d.tags.length > 0) {
+      doFlash();
+      setResult(d.result);
+    }
+  } catch {}
+  isBusy = false;
 }
-function logOut(){
-  localStorage.removeItem('vm_username');
-  USERNAME='';USER_ID=null;
-  closeSettings();
-  document.getElementById('login-screen').classList.remove('hidden');
-  document.getElementById('login-username').value='';
+
+// ── Voice Commands ─────────────────────────────────────────────────────────
+function toggleVoice() {
+  if (isListening) stopVoice();
+  else startVoice();
 }
-['reg-modal','settings-modal'].forEach(id=>{
-  document.getElementById(id).addEventListener('click',function(e){if(e.target===this)this.classList.add('hidden');});
-});
-let lastTap=0;
-document.addEventListener('touchend',e=>{const now=Date.now();if(now-lastTap<300)e.preventDefault();lastTap=now;},{passive:false});
+
+function startVoice() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert("Voice not supported on this browser. Use Chrome on Android.");
+    return;
+  }
+  recognition = new SpeechRecognition();
+  recognition.continuous    = true;
+  recognition.interimResults = false;
+  recognition.lang          = "en-US";
+  recognition.onresult = e => {
+    const transcript = e.results[e.results.length - 1][0].transcript.toLowerCase().trim();
+    handleVoiceCommand(transcript);
+  };
+  recognition.onend = () => { if (isListening) recognition.start(); };
+  recognition.onerror = () => stopVoice();
+  recognition.start();
+  isListening = true;
+  document.getElementById("micBtn").classList.add("listening");
+  document.getElementById("micBtn").textContent = "🔴 Stop";
+  document.getElementById("voiceHint").style.display = "block";
+}
+
+function stopVoice() {
+  if (recognition) recognition.stop();
+  isListening = false;
+  document.getElementById("micBtn").classList.remove("listening");
+  document.getElementById("micBtn").textContent = "🎙️ Voice";
+  document.getElementById("voiceHint").style.display = "none";
+}
+
+async function handleVoiceCommand(text) {
+  if (text.includes("who is") || text.includes("who are")) {
+    runFace();
+  } else if (text.includes("read") || text.includes("what does it say")) {
+    runOCR();
+  } else if (text.includes("what is") || text.includes("what are")) {
+    runObject();
+  } else if (text.includes("update") && text.includes("details to")) {
+    // "update riya's details to daughter who wears glasses"
+    const match = text.match(/update\s+([\w\s]+?)(?:'s)?\s+details\s+to\s+(.+)/i);
+    if (match) {
+      const name = match[1].trim();
+      const desc = match[2].trim();
+      const d = await apiPost("/update_person", { user_id: userId, name, description: desc });
+      setResult(d.result || d.error);
+      loadPersons();
+    }
+  }
+}
 </script>
 </body>
 </html>
