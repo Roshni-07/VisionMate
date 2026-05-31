@@ -193,6 +193,44 @@
   }
   .flip-btn:active { transform: scale(0.9) rotate(180deg); }
 
+  /* Zoom slider */
+  .zoom-wrap {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    right: 60px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,0,0,0.45);
+    border-radius: 20px;
+    padding: 5px 12px;
+    backdrop-filter: blur(4px);
+  }
+  .zoom-wrap span {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.8);
+    white-space: nowrap;
+    min-width: 32px;
+    text-align: right;
+  }
+  .zoom-wrap input[type=range] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.3);
+    outline: none;
+    cursor: pointer;
+  }
+  .zoom-wrap input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
   /* Result box */
   .result-box {
     margin: 16px;
@@ -392,6 +430,11 @@
     <div class="flash" id="flash"></div>
     <div class="auto-badge" id="autoBadge">⚡ AUTO</div>
     <button class="flip-btn" onclick="flipCamera()" title="Flip camera">🔄</button>
+    <div class="zoom-wrap">
+      <span>🔍</span>
+      <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1" oninput="applyZoom(this.value)">
+      <span id="zoomLabel">1×</span>
+    </div>
   </div>
 
   <div class="result-box" id="resultBox">
@@ -455,6 +498,7 @@ const SERVER = "https://visionmate-zi3m.onrender.com";
 let userId = null, userName = null;
 let videoStream = null;
 let currentFacing = "environment";
+let currentZoom   = 1;
 let autoInterval = null;
 let isAutoMode   = false;
 let recognition  = null;
@@ -514,7 +558,33 @@ async function startCamera() {
 
 async function flipCamera() {
   currentFacing = currentFacing === "environment" ? "user" : "environment";
+  currentZoom = 1;
+  document.getElementById("zoomSlider").value = 1;
+  document.getElementById("zoomLabel").textContent = "1×";
   await startCamera();
+}
+
+function applyZoom(val) {
+  currentZoom = parseFloat(val);
+  document.getElementById("zoomLabel").textContent = currentZoom.toFixed(1) + "×";
+  const video = document.getElementById("videoEl");
+
+  // Try native camera zoom via constraints (works on Android Chrome)
+  if (videoStream) {
+    const track = videoStream.getVideoTracks()[0];
+    if (track && track.getCapabilities) {
+      const caps = track.getCapabilities();
+      if (caps.zoom) {
+        const min = caps.zoom.min, max = caps.zoom.max;
+        const z = Math.min(max, Math.max(min, min + (currentZoom - 1) * (max - min) / 4));
+        track.applyConstraints({ advanced: [{ zoom: z }] }).catch(() => {});
+        return;
+      }
+    }
+  }
+  // Fallback: CSS scale transform
+  video.style.transform = `scale(${currentZoom})`;
+  video.style.transformOrigin = "center center";
 }
 
 function captureFrame() {
