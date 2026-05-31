@@ -445,6 +445,7 @@
   <div class="controls-row">
     <button class="ctrl-btn mic-btn" id="micBtn" onclick="toggleVoice()">🎙️ Voice</button>
     <button class="ctrl-btn" id="autoBtn" onclick="toggleAuto()">⚡ Auto</button>
+    <button class="ctrl-btn" id="muteBtn" onclick="toggleMute()">🔊 Sound</button>
     <button class="ctrl-btn" onclick="showPersons()">👥 Memory</button>
   </div>
 
@@ -504,6 +505,7 @@ let isAutoMode   = false;
 let recognition  = null;
 let isListening  = false;
 let isBusy       = false;
+let isMuted      = false;
 
 // ── Login ──────────────────────────────────────────────────────────────────
 async function doLogin() {
@@ -617,11 +619,24 @@ function setResult(text, loading = false) {
 }
 
 function speak(text) {
-  if (!window.speechSynthesis) return;
+  if (isMuted || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.rate = 0.95;
   window.speechSynthesis.speak(u);
+}
+
+function toggleMute() {
+  isMuted = !isMuted;
+  const btn = document.getElementById("muteBtn");
+  if (isMuted) {
+    window.speechSynthesis.cancel();
+    btn.textContent = "🔇 Muted";
+    btn.classList.add("active");
+  } else {
+    btn.textContent = "🔊 Sound";
+    btn.classList.remove("active");
+  }
 }
 
 // ── API Calls ──────────────────────────────────────────────────────────────
@@ -735,8 +750,8 @@ function startAuto() {
   isAutoMode = true;
   document.getElementById("autoBtn").classList.add("active");
   document.getElementById("autoBadge").classList.add("visible");
-  autoInterval = setInterval(autoCapture, 5000);
-  setResult("Auto mode on. Scanning every 5 seconds.");
+  autoInterval = setInterval(autoCapture, 20000);
+  setResult("Auto mode on. Scanning every 20 seconds.");
 }
 
 function stopAuto() {
