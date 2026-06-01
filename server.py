@@ -240,11 +240,51 @@ def object_detect():
     tags = res.get("result", {}).get("tags", [])
     if not tags:
         return jsonify({"result": "Could not identify any objects."})
-    top = [t["tag"]["en"] for t in tags if t.get("confidence", 0) > 30][:5]
-    if not top:
+
+    # Raise threshold to 50 — eliminates weak/vague guesses
+    filtered = [t for t in tags if t.get("confidence", 0) > 50]
+
+    # Synonym groups — keep only first match per group to avoid repetition
+    synonym_groups = [
+        {"laptop", "computer", "notebook computer", "netbook", "macbook", "personal computer", "pc"},
+        {"phone", "mobile phone", "smartphone", "cellphone", "mobile", "iphone", "android"},
+        {"desk", "table", "desktop", "workspace", "workstation"},
+        {"screen", "monitor", "display", "lcd", "led"},
+        {"keyboard", "keypad"},
+        {"person", "man", "woman", "human", "people", "individual", "adult"},
+        {"chair", "seat", "furniture", "sofa", "couch"},
+        {"book", "textbook", "notebook", "journal"},
+        {"bag", "backpack", "handbag", "purse"},
+        {"bottle", "water bottle", "flask", "container"},
+        {"cup", "mug", "glass", "tumbler"},
+        {"pen", "pencil", "marker", "stylus"},
+        {"car", "vehicle", "automobile", "truck", "van"},
+        {"food", "meal", "dish", "plate"},
+    ]
+
+    def get_group(label):
+        l = label.lower()
+        for g in synonym_groups:
+            if l in g:
+                return frozenset(g)
+        return frozenset({l})
+
+    seen_groups = set()
+    deduped = []
+    for t in filtered:
+        label = t["tag"]["en"]
+        grp = get_group(label)
+        if grp not in seen_groups:
+            seen_groups.add(grp)
+            deduped.append(label)
+        if len(deduped) == 3:
+            break
+
+    if not deduped:
         return jsonify({"result": "Could not identify any objects clearly."})
-    result = "I can see: " + ", ".join(top) + "."
-    return jsonify({"result": result, "tags": top})
+
+    result = "I can see: " + ", ".join(deduped) + "."
+    return jsonify({"result": result, "tags": deduped})
 
 # ── Register ──────────────────────────────────────────────────────────────────
 @app.route("/register", methods=["POST"])
