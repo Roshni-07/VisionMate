@@ -17,11 +17,26 @@
     --muted: #64748b;
     --radius: 18px;
   }
+
+  /* ── High Contrast Mode ── */
+  body.high-contrast {
+    --bg: #000000;
+    --surface: #111111;
+    --border: #ffff00;
+    --accent: #ffff00;
+    --accent2: #ffff00;
+    --danger: #ff4444;
+    --success: #00ff00;
+    --text: #ffffff;
+    --muted: #cccccc;
+  }
+
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     background: var(--bg);
     color: var(--text);
     font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 18px;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -38,10 +53,7 @@
     padding: 32px 24px;
     width: 100%;
   }
-  .logo {
-    font-size: 3rem;
-    margin-bottom: 8px;
-  }
+  .logo { font-size: 3rem; margin-bottom: 8px; }
   .brand {
     font-size: 2rem;
     font-weight: 700;
@@ -52,7 +64,7 @@
   }
   .tagline {
     color: var(--muted);
-    font-size: 0.9rem;
+    font-size: 1rem;
     margin-bottom: 48px;
     text-align: center;
   }
@@ -63,7 +75,7 @@
   }
   .input-group label {
     display: block;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     color: var(--muted);
     margin-bottom: 8px;
     letter-spacing: 0.05em;
@@ -74,24 +86,22 @@
     background: var(--surface);
     border: 1.5px solid var(--border);
     border-radius: 12px;
-    padding: 14px 18px;
+    padding: 16px 18px;
     color: var(--text);
-    font-size: 1rem;
+    font-size: 1.1rem;
     outline: none;
     transition: border-color 0.2s;
   }
-  .input-group input:focus {
-    border-color: var(--accent);
-  }
+  .input-group input:focus { border-color: var(--accent); }
   .btn-primary {
     width: 100%;
     max-width: 340px;
     background: linear-gradient(135deg, var(--accent), var(--accent2));
     border: none;
     border-radius: 14px;
-    padding: 16px;
+    padding: 20px;
     color: #0a0a0f;
-    font-size: 1rem;
+    font-size: 1.2rem;
     font-weight: 700;
     cursor: pointer;
     margin-top: 8px;
@@ -114,13 +124,13 @@
     background: var(--bg);
     z-index: 10;
   }
-  .header-title { font-weight: 700; font-size: 1.1rem; }
+  .header-title { font-weight: 700; font-size: 1.2rem; }
   .user-badge {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 20px;
-    padding: 6px 14px;
-    font-size: 0.8rem;
+    padding: 8px 16px;
+    font-size: 0.9rem;
     color: var(--accent);
   }
   .logout-btn {
@@ -128,8 +138,10 @@
     border: none;
     color: var(--muted);
     cursor: pointer;
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     padding: 4px 8px;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   /* Camera */
@@ -156,7 +168,6 @@
   }
   .flash.active { opacity: 0.7; }
 
-  /* Auto-mode badge */
   .auto-badge {
     position: absolute;
     top: 10px;
@@ -166,13 +177,12 @@
     color: var(--accent);
     border-radius: 20px;
     padding: 4px 12px;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 600;
     display: none;
   }
   .auto-badge.visible { display: block; }
 
-  /* Flip button */
   .flip-btn {
     position: absolute;
     bottom: 10px;
@@ -180,9 +190,9 @@
     background: rgba(0,0,0,0.5);
     border: 1.5px solid rgba(255,255,255,0.2);
     border-radius: 50%;
-    width: 42px;
-    height: 42px;
-    font-size: 1.2rem;
+    width: 50px;
+    height: 50px;
+    font-size: 1.3rem;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -193,31 +203,30 @@
   }
   .flip-btn:active { transform: scale(0.9) rotate(180deg); }
 
-  /* Zoom slider */
   .zoom-wrap {
     position: absolute;
     bottom: 10px;
     left: 10px;
-    right: 60px;
+    right: 68px;
     display: flex;
     align-items: center;
     gap: 8px;
     background: rgba(0,0,0,0.45);
     border-radius: 20px;
-    padding: 5px 12px;
+    padding: 6px 14px;
     backdrop-filter: blur(4px);
   }
   .zoom-wrap span {
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     color: rgba(255,255,255,0.8);
     white-space: nowrap;
-    min-width: 32px;
+    min-width: 36px;
     text-align: right;
   }
   .zoom-wrap input[type=range] {
     flex: 1;
     -webkit-appearance: none;
-    height: 3px;
+    height: 4px;
     border-radius: 2px;
     background: rgba(255,255,255,0.3);
     outline: none;
@@ -225,7 +234,7 @@
   }
   .zoom-wrap input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 16px; height: 16px;
+    width: 20px; height: 20px;
     border-radius: 50%;
     background: var(--accent);
     cursor: pointer;
@@ -237,24 +246,24 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 16px;
-    min-height: 72px;
-    font-size: 1rem;
-    line-height: 1.5;
+    padding: 20px;
+    min-height: 80px;
+    font-size: 1.2rem;
+    line-height: 1.6;
     color: var(--text);
     position: relative;
   }
   .result-box.speaking { border-color: var(--accent); }
   .result-label {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
   }
   .spinner {
     display: inline-block;
-    width: 18px; height: 18px;
+    width: 20px; height: 20px;
     border: 2.5px solid var(--border);
     border-top-color: var(--accent);
     border-radius: 50%;
@@ -264,31 +273,52 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ── SOS Button ── */
+  .sos-wrap {
+    padding: 0 16px 12px;
+  }
+  .sos-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #ef4444, #b91c1c);
+    border: none;
+    border-radius: var(--radius);
+    padding: 22px;
+    color: white;
+    font-size: 1.4rem;
+    font-weight: 800;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: transform 0.1s, opacity 0.2s;
+    box-shadow: 0 4px 24px rgba(239,68,68,0.35);
+  }
+  .sos-btn:active { transform: scale(0.97); opacity: 0.9; }
+
   /* Action grid */
   .action-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
-    padding: 0 16px 16px;
+    padding: 0 16px 12px;
   }
   .action-btn {
     background: var(--surface);
     border: 1.5px solid var(--border);
     border-radius: var(--radius);
-    padding: 18px 12px;
+    padding: 22px 12px;
     color: var(--text);
     cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-    font-size: 0.85rem;
-    font-weight: 500;
+    gap: 10px;
+    font-size: 1rem;
+    font-weight: 600;
     transition: border-color 0.2s, background 0.2s, transform 0.1s;
     text-align: center;
+    min-height: 90px;
   }
   .action-btn:active { transform: scale(0.96); }
-  .action-btn .icon { font-size: 1.8rem; }
+  .action-btn .icon { font-size: 2rem; }
   .action-btn.face-btn:hover, .action-btn.face-btn:focus { border-color: var(--accent); }
   .action-btn.ocr-btn:hover, .action-btn.ocr-btn:focus { border-color: #fbbf24; }
   .action-btn.obj-btn:hover, .action-btn.obj-btn:focus { border-color: var(--accent2); }
@@ -297,24 +327,27 @@
   /* Controls row */
   .controls-row {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     padding: 0 16px 12px;
     align-items: center;
+    flex-wrap: wrap;
   }
   .ctrl-btn {
     flex: 1;
+    min-width: 70px;
     background: var(--surface);
     border: 1.5px solid var(--border);
     border-radius: 12px;
-    padding: 12px 8px;
+    padding: 14px 8px;
     color: var(--text);
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     transition: border-color 0.2s;
+    min-height: 52px;
   }
   .ctrl-btn.active {
     border-color: var(--accent);
@@ -351,7 +384,7 @@
     width: 100%;
     max-width: 480px;
   }
-  .modal h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; }
+  .modal h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 20px; }
   .modal .input-group { max-width: 100%; }
   .modal-btns { display: flex; gap: 12px; margin-top: 20px; }
   .btn-secondary {
@@ -359,26 +392,34 @@
     background: var(--bg);
     border: 1.5px solid var(--border);
     border-radius: 12px;
-    padding: 14px;
+    padding: 16px;
     color: var(--muted);
-    font-size: 0.9rem;
+    font-size: 1rem;
     cursor: pointer;
+    min-height: 56px;
   }
   .btn-confirm {
     flex: 2;
     background: linear-gradient(135deg, var(--success), #16a34a);
     border: none;
     border-radius: 12px;
-    padding: 14px;
+    padding: 16px;
     color: #fff;
-    font-size: 0.9rem;
+    font-size: 1rem;
     font-weight: 700;
     cursor: pointer;
+    min-height: 56px;
   }
 
   /* Persons list */
   .persons-section { padding: 0 16px 24px; }
-  .persons-section h4 { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 10px; }
+  .persons-section h4 {
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 10px;
+  }
   .person-chip {
     display: inline-flex;
     align-items: center;
@@ -386,19 +427,19 @@
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 20px;
-    padding: 6px 14px;
+    padding: 8px 16px;
     margin: 4px 4px 4px 0;
-    font-size: 0.82rem;
+    font-size: 0.9rem;
   }
-  .person-chip .del { cursor: pointer; color: var(--danger); font-size: 0.9rem; margin-left: 4px; }
+  .person-chip .del { cursor: pointer; color: var(--danger); font-size: 1rem; margin-left: 4px; }
 
   /* Voice hint */
   .voice-hint {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
     color: var(--muted);
     text-align: center;
     padding: 0 16px 16px;
-    line-height: 1.6;
+    line-height: 1.8;
   }
 </style>
 </head>
@@ -442,11 +483,9 @@
     <div id="resultText">Tap a button below to begin.</div>
   </div>
 
-  <div class="controls-row">
-    <button class="ctrl-btn mic-btn" id="micBtn" onclick="toggleVoice()">🎙️ Voice</button>
-    <button class="ctrl-btn" id="autoBtn" onclick="toggleAuto()">⚡ Auto</button>
-    <button class="ctrl-btn" id="muteBtn" onclick="toggleMute()">🔊 Sound</button>
-    <button class="ctrl-btn" onclick="showPersons()">👥 Memory</button>
+  <!-- ── SOS BUTTON ── -->
+  <div class="sos-wrap">
+    <button class="sos-btn" onclick="triggerSOS()">🆘 SOS — Call for Help</button>
   </div>
 
   <div class="action-grid">
@@ -462,6 +501,14 @@
     <button class="action-btn reg-btn" onclick="openRegister()">
       <span class="icon">➕</span>Register Face
     </button>
+  </div>
+
+  <div class="controls-row">
+    <button class="ctrl-btn mic-btn" id="micBtn" onclick="toggleVoice()">🎙️ Voice</button>
+    <button class="ctrl-btn" id="autoBtn" onclick="toggleAuto()">⚡ Auto</button>
+    <button class="ctrl-btn" id="muteBtn" onclick="toggleMute()">🔊 Sound</button>
+    <button class="ctrl-btn" onclick="showPersons()">👥 Memory</button>
+    <button class="ctrl-btn" id="contrastBtn" onclick="toggleContrast()">🌓 Contrast</button>
   </div>
 
   <div class="voice-hint" id="voiceHint" style="display:none">
@@ -506,6 +553,7 @@ let recognition  = null;
 let isListening  = false;
 let isBusy       = false;
 let isMuted      = false;
+let isHighContrast = false;
 
 // ── Login ──────────────────────────────────────────────────────────────────
 async function doLogin() {
@@ -544,6 +592,43 @@ document.getElementById("nameInput").addEventListener("keydown", e => {
   if (e.key === "Enter") doLogin();
 });
 
+// ── High Contrast Toggle ────────────────────────────────────────────────────
+function toggleContrast() {
+  isHighContrast = !isHighContrast;
+  document.body.classList.toggle("high-contrast", isHighContrast);
+  const btn = document.getElementById("contrastBtn");
+  btn.classList.toggle("active", isHighContrast);
+  btn.textContent = isHighContrast ? "🌕 Normal" : "🌓 Contrast";
+}
+
+// ── SOS ────────────────────────────────────────────────────────────────────
+function triggerSOS() {
+  speak("Emergency alert. Sending SOS to caregiver.");
+  setResult("🆘 Sending SOS to caregiver…");
+
+  // Log to backend
+  if (userId) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const loc = `${pos.coords.latitude},${pos.coords.longitude}`;
+        apiPost("/sos", { user_id: userId, location: loc });
+        const mapsUrl = `https://maps.google.com/?q=${loc}`;
+        const msg = encodeURIComponent(`🆘 EMERGENCY: VisionMate user ${userName} needs help!\nLocation: ${mapsUrl}`);
+        window.open(`https://wa.me/?text=${msg}`, "_blank");
+      },
+      () => {
+        // No location — still send SOS
+        apiPost("/sos", { user_id: userId, location: "" });
+        const msg = encodeURIComponent(`🆘 EMERGENCY: VisionMate user ${userName} needs help!`);
+        window.open(`https://wa.me/?text=${msg}`, "_blank");
+      }
+    );
+  } else {
+    const msg = encodeURIComponent("🆘 EMERGENCY: VisionMate user needs help!");
+    window.open(`https://wa.me/?text=${msg}`, "_blank");
+  }
+}
+
 // ── Camera ─────────────────────────────────────────────────────────────────
 async function startCamera() {
   try {
@@ -570,8 +655,6 @@ function applyZoom(val) {
   currentZoom = parseFloat(val);
   document.getElementById("zoomLabel").textContent = currentZoom.toFixed(1) + "×";
   const video = document.getElementById("videoEl");
-
-  // Try native camera zoom via constraints (works on Android Chrome)
   if (videoStream) {
     const track = videoStream.getVideoTracks()[0];
     if (track && track.getCapabilities) {
@@ -584,7 +667,6 @@ function applyZoom(val) {
       }
     }
   }
-  // Fallback: CSS scale transform
   video.style.transform = `scale(${currentZoom})`;
   video.style.transformOrigin = "center center";
 }
@@ -622,7 +704,7 @@ function speak(text) {
   if (isMuted || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.rate = 0.95;
+  u.rate = 0.9;
   window.speechSynthesis.speak(u);
 }
 
@@ -656,6 +738,7 @@ async function runFace() {
   const image = captureFrame();
   setResult("Identifying faces…", true);
   try {
+    // Pass user_id so backend can log the scan
     const d = await apiPost("/face", { user_id: userId, image });
     setResult(d.result || d.error || "No result.");
   } catch { setResult("Network error."); }
@@ -669,7 +752,8 @@ async function runOCR() {
   const image = captureFrame();
   setResult("Reading text…", true);
   try {
-    const d = await apiPost("/ocr", { image });
+    // Pass user_id so backend can log the scan
+    const d = await apiPost("/ocr", { user_id: userId, image });
     setResult(d.result || d.error || "No text found.");
   } catch { setResult("Network error."); }
   isBusy = false;
@@ -682,7 +766,8 @@ async function runObject() {
   const image = captureFrame();
   setResult("Identifying objects…", true);
   try {
-    const d = await apiPost("/object", { image });
+    // Pass user_id so backend can log the scan
+    const d = await apiPost("/object", { user_id: userId, image });
     setResult(d.result || d.error || "Could not identify.");
   } catch { setResult("Network error."); }
   isBusy = false;
@@ -750,8 +835,8 @@ function startAuto() {
   isAutoMode = true;
   document.getElementById("autoBtn").classList.add("active");
   document.getElementById("autoBadge").classList.add("visible");
-  autoInterval = setInterval(autoCapture, 20000);
-  setResult("Auto mode on. Scanning every 20 seconds.");
+  autoInterval = setInterval(autoCapture, 10000);
+  setResult("Auto mode on. Scanning every 10 seconds.");
 }
 
 function stopAuto() {
@@ -765,7 +850,6 @@ async function autoCapture() {
   if (isBusy) return;
   isBusy = true;
   const image = captureFrame();
-  // Try face first, then object
   try {
     const d = await apiPost("/face", { user_id: userId, image });
     if (d.count && d.count > 0) {
@@ -776,7 +860,7 @@ async function autoCapture() {
     }
   } catch {}
   try {
-    const d = await apiPost("/object", { image });
+    const d = await apiPost("/object", { user_id: userId, image });
     if (d.tags && d.tags.length > 0) {
       doFlash();
       setResult(d.result);
@@ -829,8 +913,9 @@ async function handleVoiceCommand(text) {
     runOCR();
   } else if (text.includes("what is") || text.includes("what are")) {
     runObject();
+  } else if (text.includes("help") || text.includes("emergency") || text.includes("sos")) {
+    triggerSOS();
   } else if (text.includes("update") && text.includes("details to")) {
-    // "update riya's details to daughter who wears glasses"
     const match = text.match(/update\s+([\w\s]+?)(?:'s)?\s+details\s+to\s+(.+)/i);
     if (match) {
       const name = match[1].trim();

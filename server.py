@@ -4,6 +4,7 @@ import base64
 import requests
 import time
 import re
+from datetime import datetime
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from PIL import Image
@@ -12,12 +13,16 @@ import io
 app = Flask(__name__)
 CORS(app)
 
-# ── API Keys ──────────────────────────────────────────────────────────────────
-FACEPP_KEY    = os.environ.get("FACEPP_KEY",    "OWFgrqZhO0P1N_tu4ITyRqFDVJXC43sz")
-FACEPP_SECRET = os.environ.get("FACEPP_SECRET", "tdbRiyI11TKBEr9bPAvmnWEq0seGx1Tz")
-OCRSPACE_KEY  = os.environ.get("OCRSPACE_KEY",  "K82034259688957")
+# ── API Keys — loaded from environment only, no hardcoded fallbacks ───────────
+FACEPP_KEY    = os.environ.get("FACEPP_KEY",    "")
+FACEPP_SECRET = os.environ.get("FACEPP_SECRET", "")
+OCRSPACE_KEY  = os.environ.get("OCRSPACE_KEY",  "")
 IMAGGA_KEY    = os.environ.get("IMAGGA_KEY",    "")
 IMAGGA_SECRET = os.environ.get("IMAGGA_SECRET", "")
+
+# Caregiver WhatsApp number — set in Render env vars as CAREGIVER_PHONE
+# Format: country code + number, no + sign. e.g. 919876543210
+CAREGIVER_PHONE = os.environ.get("CAREGIVER_PHONE", "")
 
 DB_PATH = "visionmate.db"
 
@@ -42,6 +47,17 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
+    # NEW: activity log table — tracks every scan + SOS events
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            action TEXT NOT NULL,
+            detail TEXT,
+            timestamp TEXT NOT NULL,
+            location TEXT
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -53,6 +69,19 @@ def get_db():
     return conn
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+def log_activity(user_id, action, detail="", location=""):
+    """Log an activity event to the database."""
+    try:
+        db = get_db()
+        db.execute(
+            "INSERT INTO activity_log (user_id, action, detail, timestamp, location) VALUES (?,?,?,?,?)",
+            (user_id, action, detail, datetime.now().isoformat(), location)
+        )
+        db.commit()
+        db.close()
+    except Exception:
+        pass  # Never crash a scan just because logging failed
+
 def compress_image_b64(image_bytes, max_size=(800, 800), quality=75):
     img = Image.open(io.BytesIO(image_bytes))
     img.thumbnail(max_size, Image.LANCZOS)
@@ -104,7 +133,7 @@ def clean_ocr_text(raw):
 
 @app.route("/status")
 def status():
-    return jsonify({"status": "ok", "version": "2.0"})
+    return jsonify({"status": "ok", "version": "3.0"})
 
 @app.route("/app")
 def serve_app():
@@ -125,6 +154,7 @@ def login():
     user_id = user["id"]
     db.close()
     ensure_faceset(user_id, name)
+    log_activity(user_id, "login", name)
     return jsonify({"user_id": user_id, "name": name})
 
 # ── Face — MULTI-FACE ─────────────────────────────────────────────────────────
@@ -188,12 +218,17 @@ def face():
         parts.append(f"There are {unknown_count} unregistered faces.")
 
     result = " ".join(parts) if parts else "No recognized faces found."
+
+    # Log scan
+    log_activity(user_id, "face_scan", result)
+
     return jsonify({"result": result, "count": len(faces), "named": named, "unknown": unknown_count})
 
 # ── OCR ───────────────────────────────────────────────────────────────────────
 @app.route("/ocr", methods=["POST"])
 def ocr():
     data = request.get_json()
+    user_id   = data.get("user_id")
     image_b64 = data.get("image", "")
     if "," in image_b64:
         image_b64 = image_b64.split(",", 1)[1]
@@ -217,12 +252,17 @@ def ocr():
     cleaned = clean_ocr_text(raw_text)
     if not cleaned:
         return jsonify({"result": "No readable text found."})
+
+    # Log scan
+    log_activity(user_id, "ocr_scan", cleaned[:100])
+
     return jsonify({"result": cleaned})
 
 # ── Object Detection — IMAGGA ─────────────────────────────────────────────────
 @app.route("/object", methods=["POST"])
 def object_detect():
     data = request.get_json()
+    user_id   = data.get("user_id")
     image_b64 = data.get("image", "")
     if "," in image_b64:
         image_b64 = image_b64.split(",", 1)[1]
@@ -241,10 +281,8 @@ def object_detect():
     if not tags:
         return jsonify({"result": "Could not identify any objects."})
 
-    # Raise threshold to 50 — eliminates weak/vague guesses
     filtered = [t for t in tags if t.get("confidence", 0) > 50]
 
-    # Synonym groups — keep only first match per group to avoid repetition
     synonym_groups = [
         {"laptop", "computer", "notebook computer", "netbook", "macbook", "personal computer", "pc"},
         {"phone", "mobile phone", "smartphone", "cellphone", "mobile", "iphone", "android"},
@@ -284,6 +322,10 @@ def object_detect():
         return jsonify({"result": "Could not identify any objects clearly."})
 
     result = "I can see: " + ", ".join(deduped) + "."
+
+    # Log scan
+    log_activity(user_id, "object_scan", result)
+
     return jsonify({"result": result, "tags": deduped})
 
 # ── Register ──────────────────────────────────────────────────────────────────
@@ -326,6 +368,7 @@ def register():
         )
     db.commit()
     db.close()
+    log_activity(user_id, "register", name)
     return jsonify({"result": f"{name} has been registered successfully."})
 
 # ── Forget ────────────────────────────────────────────────────────────────────
@@ -353,6 +396,7 @@ def forget():
     db.execute("DELETE FROM persons WHERE user_id=? AND name=?", (user_id, name))
     db.commit()
     db.close()
+    log_activity(user_id, "forget", name)
     return jsonify({"result": f"{name} has been forgotten."})
 
 # ── Persons List ──────────────────────────────────────────────────────────────
@@ -387,7 +431,40 @@ def update_person():
     db.close()
     if result.rowcount == 0:
         return jsonify({"error": f"{name} not found"}), 404
+    log_activity(user_id, "update_person", f"{name}: {description}")
     return jsonify({"result": f"{name}'s details updated."})
+
+# ── SOS ───────────────────────────────────────────────────────────────────────
+@app.route("/sos", methods=["POST"])
+def sos():
+    data     = request.get_json()
+    user_id  = data.get("user_id")
+    location = data.get("location", "")
+    db = get_db()
+    user = db.execute("SELECT name FROM users WHERE id=?", (user_id,)).fetchone()
+    db.close()
+    user_name = user["name"] if user else "Unknown user"
+    log_activity(user_id, "SOS", f"Emergency triggered by {user_name}", location)
+    return jsonify({"status": "logged", "caregiver_phone": CAREGIVER_PHONE})
+
+# ── Caregiver Dashboard ───────────────────────────────────────────────────────
+@app.route("/caregiver", methods=["POST"])
+def caregiver():
+    data    = request.get_json()
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "Missing user_id"}), 400
+    db = get_db()
+    logs = db.execute(
+        "SELECT action, detail, timestamp, location FROM activity_log WHERE user_id=? ORDER BY timestamp DESC LIMIT 50",
+        (user_id,)
+    ).fetchall()
+    user = db.execute("SELECT name FROM users WHERE id=?", (user_id,)).fetchone()
+    db.close()
+    return jsonify({
+        "user_name": user["name"] if user else "Unknown",
+        "logs": [{"action": r["action"], "detail": r["detail"], "timestamp": r["timestamp"], "location": r["location"]} for r in logs]
+    })
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
