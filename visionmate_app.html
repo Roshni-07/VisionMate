@@ -273,26 +273,6 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* ── SOS Button ── */
-  .sos-wrap {
-    padding: 0 16px 12px;
-  }
-  .sos-btn {
-    width: 100%;
-    background: linear-gradient(135deg, #ef4444, #b91c1c);
-    border: none;
-    border-radius: var(--radius);
-    padding: 22px;
-    color: white;
-    font-size: 1.4rem;
-    font-weight: 800;
-    cursor: pointer;
-    letter-spacing: 0.05em;
-    transition: transform 0.1s, opacity 0.2s;
-    box-shadow: 0 4px 24px rgba(239,68,68,0.35);
-  }
-  .sos-btn:active { transform: scale(0.97); opacity: 0.9; }
-
   /* Action grid */
   .action-grid {
     display: grid;
@@ -483,11 +463,6 @@
     <div id="resultText">Tap a button below to begin.</div>
   </div>
 
-  <!-- ── SOS BUTTON ── -->
-  <div class="sos-wrap">
-    <button class="sos-btn" onclick="triggerSOS()">🆘 SOS — Call for Help</button>
-  </div>
-
   <div class="action-grid">
     <button class="action-btn face-btn" onclick="runFace()">
       <span class="icon">🧑‍🤝‍🧑</span>Who is this?
@@ -599,34 +574,6 @@ function toggleContrast() {
   const btn = document.getElementById("contrastBtn");
   btn.classList.toggle("active", isHighContrast);
   btn.textContent = isHighContrast ? "🌕 Normal" : "🌓 Contrast";
-}
-
-// ── SOS ────────────────────────────────────────────────────────────────────
-function triggerSOS() {
-  speak("Emergency alert. Sending SOS to caregiver.");
-  setResult("🆘 Sending SOS to caregiver…");
-
-  // Log to backend
-  if (userId) {
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const loc = `${pos.coords.latitude},${pos.coords.longitude}`;
-        apiPost("/sos", { user_id: userId, location: loc });
-        const mapsUrl = `https://maps.google.com/?q=${loc}`;
-        const msg = encodeURIComponent(`🆘 EMERGENCY: VisionMate user ${userName} needs help!\nLocation: ${mapsUrl}`);
-        window.open(`https://wa.me/?text=${msg}`, "_blank");
-      },
-      () => {
-        // No location — still send SOS
-        apiPost("/sos", { user_id: userId, location: "" });
-        const msg = encodeURIComponent(`🆘 EMERGENCY: VisionMate user ${userName} needs help!`);
-        window.open(`https://wa.me/?text=${msg}`, "_blank");
-      }
-    );
-  } else {
-    const msg = encodeURIComponent("🆘 EMERGENCY: VisionMate user needs help!");
-    window.open(`https://wa.me/?text=${msg}`, "_blank");
-  }
 }
 
 // ── Camera ─────────────────────────────────────────────────────────────────
@@ -913,8 +860,6 @@ async function handleVoiceCommand(text) {
     runOCR();
   } else if (text.includes("what is") || text.includes("what are")) {
     runObject();
-  } else if (text.includes("help") || text.includes("emergency") || text.includes("sos")) {
-    triggerSOS();
   } else if (text.includes("update") && text.includes("details to")) {
     const match = text.match(/update\s+([\w\s]+?)(?:'s)?\s+details\s+to\s+(.+)/i);
     if (match) {

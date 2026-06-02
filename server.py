@@ -20,9 +20,6 @@ OCRSPACE_KEY  = os.environ.get("OCRSPACE_KEY",  "")
 IMAGGA_KEY    = os.environ.get("IMAGGA_KEY",    "")
 IMAGGA_SECRET = os.environ.get("IMAGGA_SECRET", "")
 
-# Caregiver WhatsApp number — set in Render env vars as CAREGIVER_PHONE
-# Format: country code + number, no + sign. e.g. 919876543210
-CAREGIVER_PHONE = os.environ.get("CAREGIVER_PHONE", "")
 
 DB_PATH = "visionmate.db"
 
@@ -47,7 +44,7 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
-    # NEW: activity log table — tracks every scan + SOS events
+    # NEW: activity log table — tracks every scan event
     c.execute("""
         CREATE TABLE IF NOT EXISTS activity_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
