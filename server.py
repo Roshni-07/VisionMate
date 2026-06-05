@@ -21,7 +21,7 @@ IMAGGA_KEY    = os.environ.get("IMAGGA_KEY",    "")
 IMAGGA_SECRET = os.environ.get("IMAGGA_SECRET", "")
 
 
-DB_PATH = "visionmate.db"
+DB_PATH = os.environ.get("DB_PATH", "visionmate.db")
 
 # ── Database ──────────────────────────────────────────────────────────────────
 def init_db():

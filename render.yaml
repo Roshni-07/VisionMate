@@ -5,8 +5,12 @@ services:
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn server:app --workers 1 --timeout 120 --bind 0.0.0.0:$PORT
+    disk:
+      name: visionmate-db
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: DB_PATH
-        value: /tmp/visionmate.db
+        value: /data/visionmate.db
       - key: PYTHON_VERSION
         value: 3.11.0
