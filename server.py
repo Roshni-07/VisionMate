@@ -21,7 +21,7 @@ IMAGGA_KEY    = os.environ.get("IMAGGA_KEY",    "")
 IMAGGA_SECRET = os.environ.get("IMAGGA_SECRET", "")
 
 
-DB_PATH = os.environ.get("DB_PATH", "visionmate.db")
+DB_PATH = "visionmate.db"
 
 # ── Database ──────────────────────────────────────────────────────────────────
 def init_db():
@@ -188,21 +188,24 @@ def face():
                 "/facepp/v3/search",
                 {"faceset_token": faceset_token, "face_token": token}
             )
-            results = search_res.get("results", [])
-            if results and results[0].get("confidence", 0) >= 70:
-                best = results[0]
-                db = get_db()
-                person = db.execute(
-                    "SELECT name, description FROM persons WHERE face_token=? AND user_id=?",
-                    (best["face_token"], user_id)
-                ).fetchone()
-                db.close()
-                if person:
-                    label = person["name"]
-                    if person["description"]:
-                        label += f" ({person['description']})"
-                    named.append(label)
-                    recognized = True
+            if not search_res.get("error_message"):
+                results = search_res.get("results", [])
+                if results:
+                    best = results[0]
+                    confidence = best.get("confidence", 0)
+                    if confidence >= 80:
+                        db = get_db()
+                        person = db.execute(
+                            "SELECT name, description FROM persons WHERE face_token=? AND user_id=?",
+                            (best["face_token"], user_id)
+                        ).fetchone()
+                        db.close()
+                        if person:
+                            label = person["name"]
+                            if person["description"]:
+                                label += f" ({person['description']})"
+                            named.append(label)
+                            recognized = True
         if not recognized:
             unknown_count += 1
 
