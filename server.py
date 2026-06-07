@@ -86,6 +86,19 @@ def compress_image_b64(image_bytes, max_size=(800, 800), quality=75):
     img.save(buf, format="JPEG", quality=quality)
     return base64.b64encode(buf.getvalue()).decode()
 
+def compress_image_b64_ocr(image_bytes, max_size=(1200, 1200), quality=90):
+    """OCR-specific preprocessing: higher res + grayscale + contrast + sharpen."""
+    from PIL import ImageEnhance, ImageFilter
+    img = Image.open(io.BytesIO(image_bytes))
+    img.thumbnail(max_size, Image.LANCZOS)
+    img = img.convert("L")                          # grayscale — removes color noise
+    img = ImageEnhance.Contrast(img).enhance(2.0)   # boost contrast for faded text
+    img = img.filter(ImageFilter.SHARPEN)           # sharpen edges of characters
+    img = img.convert("RGB")                        # OCR.space needs RGB/JPEG
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=quality)
+    return base64.b64encode(buf.getvalue()).decode()
+
 def facepp_post(endpoint, extra_data=None, image_b64=None):
     data = {"api_key": FACEPP_KEY, "api_secret": FACEPP_SECRET}
     if extra_data:
@@ -229,6 +242,9 @@ def ocr():
     image_b64 = data.get("image", "")
     if "," in image_b64:
         image_b64 = image_b64.split(",", 1)[1]
+    # Preprocess: grayscale + contrast + sharpen before OCR
+    image_bytes = base64.b64decode(image_b64)
+    image_b64 = compress_image_b64_ocr(image_bytes)
     resp = requests.post(
         "https://api.ocr.space/parse/image",
         data={
@@ -278,104 +294,40 @@ def object_detect():
     if not tags:
         return jsonify({"result": "Could not identify any objects."})
 
-    filtered = [t for t in tags if t.get("confidence", 0) > 30]
+    filtered = [t for t in tags if t.get("confidence", 0) > 50]
 
-    # canonical label → all synonyms Imagga may return for same object
-    SYNONYM_GROUPS = {
-        # Computing
-        "laptop":           {"laptop", "computer", "notebook computer", "netbook", "macbook", "personal computer", "pc", "chromebook", "ultrabook"},
-        "phone":            {"phone", "mobile phone", "smartphone", "cellphone", "mobile", "iphone", "android", "handset", "telephone"},
-        "tablet":           {"tablet", "ipad", "tablet computer", "e-reader", "kindle"},
-        "keyboard":         {"keyboard", "keypad", "numeric keypad"},
-        "mouse":            {"mouse", "computer mouse", "trackpad", "touchpad"},
-        "screen":           {"screen", "monitor", "display", "lcd", "led", "oled", "television", "tv", "smart tv"},
-        "projector":        {"projector", "video projector", "beamer", "overhead projector", "dlp projector"},
-        "printer":          {"printer", "laser printer", "inkjet printer", "scanner", "photocopier", "copier"},
-        "router":           {"router", "modem", "wifi router", "network device", "access point"},
-        "hard drive":       {"hard drive", "hard disk", "hdd", "ssd", "usb drive", "flash drive", "pendrive", "memory stick"},
-        "camera":           {"camera", "webcam", "dslr", "digital camera", "video camera", "camcorder", "action camera"},
-        "headphones":       {"headphones", "earphones", "earbuds", "headset", "airpods", "earplugs"},
-        "speaker":          {"speaker", "loudspeaker", "bluetooth speaker", "sound system", "subwoofer"},
-        "remote control":   {"remote control", "remote", "tv remote", "clicker"},
-        # Furniture & room
-        "table":            {"desk", "table", "dining table", "coffee table", "workspace", "workstation", "countertop", "counter"},
-        "chair":            {"chair", "seat", "office chair", "sofa", "couch", "armchair", "bench", "stool", "recliner", "settee"},
-        "bed":              {"bed", "mattress", "bunk bed", "cot", "crib", "bedframe"},
-        "shelf":            {"shelf", "bookshelf", "bookcase", "rack", "cabinet", "cupboard", "wardrobe", "drawer", "dresser", "almira"},
-        "door":             {"door", "doorway", "gate", "entrance", "exit", "sliding door"},
-        "window":           {"window", "glass window", "window pane"},
-        "whiteboard":       {"whiteboard", "blackboard", "chalkboard", "board", "presentation board", "smartboard"},
-        "clock":            {"clock", "wall clock", "alarm clock", "watch", "wristwatch", "timer"},
-        "lamp":             {"lamp", "light", "bulb", "tube light", "led light", "ceiling light", "desk lamp", "torch", "flashlight", "lantern"},
-        "fan":              {"fan", "ceiling fan", "table fan", "pedestal fan", "exhaust fan"},
-        "air conditioner":  {"air conditioner", "ac", "air conditioning", "split ac", "window ac", "hvac"},
-        "heater":           {"heater", "room heater", "radiator", "electric heater"},
-        "mirror":           {"mirror", "looking glass", "dressing mirror"},
-        "curtain":          {"curtain", "drape", "blind", "shutter", "shade"},
-        "carpet":           {"carpet", "rug", "mat", "floor mat", "doormat"},
-        # Stationery & office
-        "pen":              {"pen", "pencil", "marker", "stylus", "highlighter", "ballpoint", "fountain pen"},
-        "book":             {"book", "textbook", "notebook", "journal", "magazine", "newspaper", "manual", "binder", "folder"},
-        "paper":            {"paper", "document", "sheet", "form", "receipt", "bill", "invoice", "printout"},
-        "scissors":         {"scissors", "cutter", "blade", "knife", "box cutter"},
-        "stapler":          {"stapler", "staple", "hole punch"},
-        "calculator":       {"calculator", "scientific calculator"},
-        # Kitchen & food
-        "cup":              {"cup", "mug", "glass", "tumbler", "teacup", "coffee cup"},
-        "bottle":           {"bottle", "water bottle", "flask", "thermos", "container", "jar", "jug"},
-        "plate":            {"plate", "dish", "bowl", "tray", "platter"},
-        "food":             {"food", "meal", "snack", "lunch", "dinner", "breakfast", "fruit", "vegetable", "bread", "rice"},
-        "spoon":            {"spoon", "fork", "knife", "cutlery", "spatula", "ladle"},
-        "microwave":        {"microwave", "oven", "toaster", "microwave oven"},
-        "refrigerator":     {"refrigerator", "fridge", "freezer"},
-        # Clothing & personal
-        "bag":              {"bag", "backpack", "handbag", "purse", "suitcase", "luggage", "briefcase", "tote bag"},
-        "glasses":          {"glasses", "spectacles", "sunglasses", "eyeglasses", "goggles"},
-        "helmet":           {"helmet", "hard hat", "safety helmet", "cap", "hat"},
-        "shoes":            {"shoes", "sneakers", "sandals", "boots", "footwear", "slippers", "chappal"},
-        "umbrella":         {"umbrella", "raincoat", "poncho"},
-        # Medical & safety
-        "medicine":         {"medicine", "tablet", "capsule", "pill", "syrup", "injection", "drug", "medication"},
-        "wheelchair":       {"wheelchair", "walker", "crutches", "cane", "walking stick"},
-        "fire extinguisher":{"fire extinguisher", "extinguisher", "fire safety"},
-        "first aid":        {"first aid", "first aid kit", "bandage", "plaster", "medical kit"},
-        # Transport & outdoor
-        "car":              {"car", "vehicle", "automobile", "truck", "van", "jeep", "suv", "taxi", "cab"},
-        "bicycle":          {"bicycle", "bike", "cycle", "scooter", "motorbike", "motorcycle"},
-        "bus":              {"bus", "minibus", "coach", "school bus"},
-        # People
-        "person":           {"person", "man", "woman", "human", "people", "individual", "adult", "child", "kid", "student", "teacher"},
-    }
+    synonym_groups = [
+        {"laptop", "computer", "notebook computer", "netbook", "macbook", "personal computer", "pc"},
+        {"phone", "mobile phone", "smartphone", "cellphone", "mobile", "iphone", "android"},
+        {"desk", "table", "desktop", "workspace", "workstation"},
+        {"screen", "monitor", "display", "lcd", "led"},
+        {"keyboard", "keypad"},
+        {"person", "man", "woman", "human", "people", "individual", "adult"},
+        {"chair", "seat", "furniture", "sofa", "couch"},
+        {"book", "textbook", "notebook", "journal"},
+        {"bag", "backpack", "handbag", "purse"},
+        {"bottle", "water bottle", "flask", "container"},
+        {"cup", "mug", "glass", "tumbler"},
+        {"pen", "pencil", "marker", "stylus"},
+        {"car", "vehicle", "automobile", "truck", "van"},
+        {"food", "meal", "dish", "plate"},
+    ]
 
-    # Generic/abstract tags — useless to announce
-    USELESS_TAGS = {
-        "indoor", "outdoor", "technology", "wood", "wall", "floor",
-        "ceiling", "background", "object", "item", "material", "no person",
-        "surface", "texture", "color", "colour", "equipment", "still life",
-        "electronic", "electronics", "device", "interior", "room", "space",
-        "design", "pattern", "shape", "style", "modern", "old", "new",
-        "dark", "light", "bright", "blur", "closeup", "close-up",
-        "horizontal", "vertical", "nobody", "group", "collection",
-        "various", "many", "single", "multiple", "set", "type"
-    }
-
-    def get_canonical(label):
+    def get_group(label):
         l = label.lower()
-        for canonical, synonyms in SYNONYM_GROUPS.items():
-            if l in synonyms:
-                return canonical
-        return label  # not in any group — use as-is
+        for g in synonym_groups:
+            if l in g:
+                return frozenset(g)
+        return frozenset({l})
 
-    seen = set()
+    seen_groups = set()
     deduped = []
     for t in filtered:
         label = t["tag"]["en"]
-        if label.lower() in USELESS_TAGS:
-            continue
-        canonical = get_canonical(label)
-        if canonical not in seen:
-            seen.add(canonical)
-            deduped.append(canonical)
+        grp = get_group(label)
+        if grp not in seen_groups:
+            seen_groups.add(grp)
+            deduped.append(label)
         if len(deduped) == 3:
             break
 
