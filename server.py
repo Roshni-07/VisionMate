@@ -21,7 +21,7 @@ IMAGGA_KEY    = os.environ.get("IMAGGA_KEY",    "")
 IMAGGA_SECRET = os.environ.get("IMAGGA_SECRET", "")
 
 
-DB_PATH = "visionmate.db"
+DB_PATH = os.environ.get("DB_PATH", "visionmate.db")
 
 # ── Database ──────────────────────────────────────────────────────────────────
 def init_db():
@@ -86,6 +86,17 @@ def compress_image_b64(image_bytes, max_size=(800, 800), quality=75):
     img.save(buf, format="JPEG", quality=quality)
     return base64.b64encode(buf.getvalue()).decode()
 
+def compress_image_b64_ocr(image_bytes):
+    """Grayscale + contrast + sharpen + 1200px for OCR."""
+    from PIL import ImageEnhance, ImageFilter
+    img = Image.open(io.BytesIO(image_bytes)).convert("L")
+    img = ImageEnhance.Contrast(img).enhance(2.0)
+    img = img.filter(ImageFilter.SHARPEN)
+    img.thumbnail((1200, 1200), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=90)
+    return base64.b64encode(buf.getvalue()).decode()
+
 def facepp_post(endpoint, extra_data=None, image_b64=None):
     data = {"api_key": FACEPP_KEY, "api_secret": FACEPP_SECRET}
     if extra_data:
@@ -130,7 +141,7 @@ def clean_ocr_text(raw):
 
 @app.route("/status")
 def status():
-    return jsonify({"status": "ok", "version": "3.0"})
+    return jsonify({"status": "ok", "version": "4.1"})
 
 @app.route("/app")
 def serve_app():
@@ -154,7 +165,7 @@ def login():
     log_activity(user_id, "login", name)
     return jsonify({"user_id": user_id, "name": name})
 
-# ── Face — MULTI-FACE ─────────────────────────────────────────────────────────
+# ── Face — MULTI-FACE with proximity sort ─────────────────────────────────────
 @app.route("/face", methods=["POST"])
 def face():
     data = request.get_json()
@@ -172,6 +183,14 @@ def face():
     if not faces:
         return jsonify({"result": "No faces detected in the image.", "count": 0})
 
+    # Sort by bounding box area descending — largest = nearest to camera
+    faces.sort(
+        key=lambda f: f["face_rectangle"]["width"] * f["face_rectangle"]["height"],
+        reverse=True
+    )
+    # Process top 3 only (ignore tiny background faces)
+    faces = faces[:3]
+
     db = get_db()
     faceset_row = db.execute("SELECT faceset_token FROM users WHERE id=?", (user_id,)).fetchone()
     db.close()
@@ -188,9 +207,14 @@ def face():
                 "/facepp/v3/search",
                 {"faceset_token": faceset_token, "face_token": token}
             )
+            # Guard: skip if Face++ returned an error
+            if search_res.get("error_message"):
+                unknown_count += 1
+                continue
             results = search_res.get("results", [])
-            if results and results[0].get("confidence", 0) >= 70:
+            if results and results[0].get("confidence", 0) >= 80:
                 best = results[0]
+                confidence = round(results[0]["confidence"], 1)
                 db = get_db()
                 person = db.execute(
                     "SELECT name, description FROM persons WHERE face_token=? AND user_id=?",
@@ -201,14 +225,16 @@ def face():
                     label = person["name"]
                     if person["description"]:
                         label += f" ({person['description']})"
-                    named.append(label)
+                    named.append({"name": label, "confidence": confidence})
                     recognized = True
         if not recognized:
             unknown_count += 1
 
     parts = []
     if named:
-        parts.append("This is " + ", ".join(named) + ".")
+        # Nearest first (already sorted by proximity)
+        name_list = ", ".join(n["name"] for n in named)
+        parts.append("I can see " + name_list + ".")
     if unknown_count == 1:
         parts.append("There is 1 unregistered face.")
     elif unknown_count > 1:
@@ -216,10 +242,16 @@ def face():
 
     result = " ".join(parts) if parts else "No recognized faces found."
 
-    # Log scan
-    log_activity(user_id, "face_scan", result)
+    # Log with confidence scores
+    log_detail = ", ".join(f"{n['name']} ({n['confidence']}%)" for n in named) if named else result
+    log_activity(user_id, "face_scan", log_detail)
 
-    return jsonify({"result": result, "count": len(faces), "named": named, "unknown": unknown_count})
+    return jsonify({
+        "result": result,
+        "count": len(faces),
+        "named": [n["name"] for n in named],
+        "unknown": unknown_count
+    })
 
 # ── OCR ───────────────────────────────────────────────────────────────────────
 @app.route("/ocr", methods=["POST"])
@@ -229,11 +261,13 @@ def ocr():
     image_b64 = data.get("image", "")
     if "," in image_b64:
         image_b64 = image_b64.split(",", 1)[1]
+    image_bytes = base64.b64decode(image_b64)
+    image_b64c  = compress_image_b64_ocr(image_bytes)
     resp = requests.post(
         "https://api.ocr.space/parse/image",
         data={
             "apikey": OCRSPACE_KEY,
-            "base64Image": f"data:image/jpeg;base64,{image_b64}",
+            "base64Image": f"data:image/jpeg;base64,{image_b64c}",
             "isOverlayRequired": False,
             "language": "eng",
             "isCreateSearchablePdf": False,
@@ -278,40 +312,91 @@ def object_detect():
     if not tags:
         return jsonify({"result": "Could not identify any objects."})
 
-    filtered = [t for t in tags if t.get("confidence", 0) > 50]
+    filtered = [t for t in tags if t.get("confidence", 0) > 30]
 
-    synonym_groups = [
-        {"laptop", "computer", "notebook computer", "netbook", "macbook", "personal computer", "pc"},
-        {"phone", "mobile phone", "smartphone", "cellphone", "mobile", "iphone", "android"},
-        {"desk", "table", "desktop", "workspace", "workstation"},
-        {"screen", "monitor", "display", "lcd", "led"},
-        {"keyboard", "keypad"},
-        {"person", "man", "woman", "human", "people", "individual", "adult"},
-        {"chair", "seat", "furniture", "sofa", "couch"},
-        {"book", "textbook", "notebook", "journal"},
-        {"bag", "backpack", "handbag", "purse"},
-        {"bottle", "water bottle", "flask", "container"},
-        {"cup", "mug", "glass", "tumbler"},
-        {"pen", "pencil", "marker", "stylus"},
-        {"car", "vehicle", "automobile", "truck", "van"},
-        {"food", "meal", "dish", "plate"},
+    USELESS_TAGS = {
+        "image", "photography", "photo", "picture", "color", "colour", "design",
+        "art", "illustration", "graphic", "texture", "pattern", "background",
+        "shape", "object", "thing", "item", "element", "material", "surface",
+        "light", "dark", "white", "black", "indoor", "outdoor", "nobody",
+        "no person", "single", "isolated", "closeup", "close-up", "style"
+    }
+
+    SYNONYM_GROUPS = [
+        ({"laptop","computer","notebook computer","netbook","macbook","personal computer","pc"}, "laptop"),
+        ({"phone","mobile phone","smartphone","cellphone","mobile","iphone","android"}, "phone"),
+        ({"tablet","ipad","tab"}, "tablet"),
+        ({"keyboard","keypad"}, "keyboard"),
+        ({"mouse","computer mouse"}, "mouse"),
+        ({"screen","monitor","display","lcd","led","television","tv"}, "screen"),
+        ({"projector","overhead projector"}, "projector"),
+        ({"printer"}, "printer"),
+        ({"router","modem","wifi router"}, "router"),
+        ({"hard drive","hard disk","external drive","usb drive","pendrive","flash drive"}, "hard drive"),
+        ({"camera","webcam","dslr","digital camera"}, "camera"),
+        ({"headphones","headset","earphones","earbuds","airpods"}, "headphones"),
+        ({"speaker","loudspeaker","bluetooth speaker"}, "speaker"),
+        ({"remote control","remote"}, "remote control"),
+        ({"desk","table","desktop","workspace","workstation","dining table"}, "table"),
+        ({"chair","seat","sofa","couch","armchair","bench"}, "chair"),
+        ({"bed","mattress","cot"}, "bed"),
+        ({"shelf","bookshelf","rack","cabinet","cupboard","drawer","wardrobe"}, "shelf"),
+        ({"door","doorway","entrance","gate"}, "door"),
+        ({"window","windowpane"}, "window"),
+        ({"whiteboard","blackboard","chalkboard","board"}, "whiteboard"),
+        ({"clock","watch","wristwatch","alarm clock","wall clock"}, "clock"),
+        ({"lamp","light","bulb","torch","flashlight","tube light"}, "lamp"),
+        ({"fan","ceiling fan","table fan"}, "fan"),
+        ({"air conditioner","ac","air conditioning"}, "air conditioner"),
+        ({"heater","radiator","room heater"}, "heater"),
+        ({"mirror"}, "mirror"),
+        ({"curtain","blinds","drape"}, "curtain"),
+        ({"carpet","rug","mat","floor mat"}, "carpet"),
+        ({"pen","pencil","marker","stylus","crayon"}, "pen"),
+        ({"book","textbook","notebook","journal","magazine","comic"}, "book"),
+        ({"paper","document","sheet","newspaper"}, "paper"),
+        ({"scissors","cutter"}, "scissors"),
+        ({"stapler"}, "stapler"),
+        ({"calculator"}, "calculator"),
+        ({"cup","mug","glass","tumbler","teacup"}, "cup"),
+        ({"bottle","water bottle","flask","container","jar"}, "bottle"),
+        ({"plate","dish","tray","bowl"}, "plate"),
+        ({"food","meal","snack","fruit","vegetable","bread","rice"}, "food"),
+        ({"spoon","fork","knife","cutlery","chopsticks"}, "spoon"),
+        ({"microwave","oven","microwave oven"}, "microwave"),
+        ({"refrigerator","fridge","freezer"}, "refrigerator"),
+        ({"bag","backpack","handbag","purse","suitcase","luggage"}, "bag"),
+        ({"glasses","spectacles","sunglasses","eyeglasses"}, "glasses"),
+        ({"helmet","hard hat"}, "helmet"),
+        ({"shoes","sneakers","sandals","boots","footwear"}, "shoes"),
+        ({"umbrella","parasol"}, "umbrella"),
+        ({"medicine","pill","tablet","capsule","syringe","injection"}, "medicine"),
+        ({"wheelchair"}, "wheelchair"),
+        ({"fire extinguisher"}, "fire extinguisher"),
+        ({"first aid","first aid kit","bandage"}, "first aid"),
+        ({"car","vehicle","automobile","truck","van","suv"}, "car"),
+        ({"bicycle","bike","cycle"}, "bicycle"),
+        ({"bus","train","metro"}, "bus"),
+        ({"person","man","woman","human","people","individual","adult","child"}, "person"),
     ]
 
-    def get_group(label):
+    def get_canonical(label):
         l = label.lower()
-        for g in synonym_groups:
-            if l in g:
-                return frozenset(g)
-        return frozenset({l})
+        for group, canonical in SYNONYM_GROUPS:
+            if l in group:
+                return canonical
+        return l
 
-    seen_groups = set()
+    seen_canonical = set()
     deduped = []
     for t in filtered:
-        label = t["tag"]["en"]
-        grp = get_group(label)
-        if grp not in seen_groups:
-            seen_groups.add(grp)
-            deduped.append(label)
+        label = t["tag"]["en"].lower()
+        if label in USELESS_TAGS:
+            continue
+        canonical = get_canonical(label)
+        if canonical not in seen_canonical:
+            seen_canonical.add(canonical)
+            deduped.append(canonical)
         if len(deduped) == 3:
             break
 
