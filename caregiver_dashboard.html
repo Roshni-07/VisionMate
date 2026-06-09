@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VisionMate — Caregiver Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f5f5;
+    --surface: #ffffff;
+    --border: #e0e0e0;
+    --text: #1a1a1a;
+    --text-muted: #666;
+    --accent: #2563eb;
+    --accent-light: #eff6ff;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --amber: #b45309;
+    --amber-light: #fffbeb;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --gray-light: #f8f8f8;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 15px;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header-brand { display: flex; align-items: center; gap: 10px; }
+  .header-logo {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700;
+  }
+  .header-title { font-size: 16px; font-weight: 600; }
+  .header-sub { font-size: 12px; color: var(--text-muted); }
+  .live-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--green); font-weight: 500;
+  }
+  .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── Layout ── */
+  .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+
+  /* ── Login card ── */
+  #loginSection {
+    max-width: 420px; margin: 60px auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+  }
+  .login-icon { font-size: 40px; text-align: center; margin-bottom: 12px; }
+  .login-title { font-size: 20px; font-weight: 600; text-align: center; margin-bottom: 4px; }
+  .login-sub { font-size: 13px; color: var(--text-muted); text-align: center; margin-bottom: 24px; }
+  label { font-size: 13px; font-weight: 500; display: block; margin-bottom: 6px; color: var(--text-muted); }
+  select, input {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-size: 14px; background: var(--surface); color: var(--text);
+    outline: none; transition: border-color 0.15s;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+  .btn {
+    width: 100%; padding: 11px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: var(--radius-sm);
+    font-size: 14px; font-weight: 500; cursor: pointer;
+    margin-top: 16px; transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.9; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .field { margin-bottom: 16px; }
+  .error-msg { font-size: 13px; color: var(--red); margin-top: 10px; text-align: center; }
+
+  /* ── Dashboard ── */
+  #dashSection { display: none; }
+
+  /* ── Stats row ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px;
+  }
+  .stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+  .stat-value { font-size: 26px; font-weight: 600; }
+  .stat-value.blue { color: var(--accent); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.amber { color: var(--amber); }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .toolbar-title { font-size: 15px; font-weight: 600; flex: 1; }
+  .filter-select {
+    padding: 7px 10px; font-size: 13px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface); color: var(--text); cursor: pointer;
+  }
+  .refresh-btn {
+    padding: 7px 14px; font-size: 13px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface); cursor: pointer; color: var(--text);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .refresh-btn:hover { background: var(--gray-light); }
+  .logout-btn {
+    padding: 7px 14px; font-size: 13px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface); cursor: pointer; color: var(--red);
+  }
+
+  /* ── Patient info bar ── */
+  .patient-bar {
+    background: var(--accent-light);
+    border: 1px solid #bfdbfe;
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 20px;
+  }
+  .patient-avatar {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 600; flex-shrink: 0;
+  }
+  .patient-name { font-size: 16px; font-weight: 600; }
+  .patient-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .last-seen {
+    margin-left: auto; text-align: right;
+    font-size: 12px; color: var(--text-muted);
+  }
+  .last-seen strong { font-size: 13px; color: var(--text); display: block; }
+
+  /* ── Log table ── */
+  .log-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .log-table { width: 100%; border-collapse: collapse; }
+  .log-table th {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.05em; color: var(--text-muted);
+    padding: 10px 14px; text-align: left;
+    background: var(--gray-light);
+    border-bottom: 1px solid var(--border);
+  }
+  .log-table td {
+    padding: 11px 14px; font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .log-table tr:last-child td { border-bottom: none; }
+  .log-table tr:hover td { background: var(--gray-light); }
+
+  .action-badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 20px; font-size: 11px; font-weight: 500;
+    white-space: nowrap;
+  }
+  .badge-face    { background: #eff6ff; color: #1d4ed8; }
+  .badge-ocr     { background: #f0fdf4; color: #15803d; }
+  .badge-object  { background: #fefce8; color: #854d0e; }
+  .badge-login   { background: #f5f3ff; color: #6d28d9; }
+  .badge-register{ background: #fff7ed; color: #9a3412; }
+  .badge-forget  { background: #fef2f2; color: #991b1b; }
+  .badge-update  { background: #f0f9ff; color: #0369a1; }
+  .badge-default { background: #f4f4f5; color: #52525b; }
+
+  .detail-cell { max-width: 340px; word-break: break-word; line-height: 1.5; }
+  .time-cell { white-space: nowrap; color: var(--text-muted); font-size: 12px; }
+  .time-date { color: var(--text); font-size: 13px; display: block; }
+
+  .empty-state {
+    text-align: center; padding: 48px 24px;
+    color: var(--text-muted); font-size: 14px;
+  }
+  .empty-state .empty-icon { font-size: 36px; margin-bottom: 10px; }
+
+  .loading-row td { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .header { padding: 0 14px; }
+    .container { padding: 16px 10px; }
+    .log-table th:nth-child(4),
+    .log-table td:nth-child(4) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-brand">
+    <div class="header-logo">V</div>
+    <div>
+      <div class="header-title">VisionMate</div>
+      <div class="header-sub">Caregiver Dashboard</div>
+    </div>
+  </div>
+  <div class="live-badge">
+    <div class="live-dot"></div>
+    Live monitoring
+  </div>
+</div>
+
+<!-- ── Login ── -->
+<div id="loginSection">
+  <div class="login-icon">🏥</div>
+  <div class="login-title">Caregiver Login</div>
+  <div class="login-sub">Select the patient you want to monitor</div>
+
+  <div class="field">
+    <label for="patientSelect">Patient name</label>
+    <select id="patientSelect">
+      <option value="">Loading patients…</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label for="pinInput">Caregiver PIN <span style="color:var(--text-muted);font-weight:400">(optional — leave blank if not set)</span></label>
+    <input type="password" id="pinInput" placeholder="Enter PIN" maxlength="8">
+  </div>
+
+  <button class="btn" onclick="doLogin()" id="loginBtn">View Activity Log</button>
+  <div class="error-msg" id="loginError"></div>
+</div>
+
+<!-- ── Dashboard ── -->
+<div id="dashSection">
+  <div class="container">
+
+    <div class="toolbar">
+      <div class="toolbar-title" id="dashTitle">Activity Log</div>
+      <select class="filter-select" id="filterSelect" onchange="applyFilter()">
+        <option value="all">All events</option>
+        <option value="face_scan">Face scans</option>
+        <option value="ocr_scan">Text reads</option>
+        <option value="object_scan">Object scans</option>
+        <option value="login">Logins</option>
+        <option value="register">Registrations</option>
+      </select>
+      <button class="refresh-btn" onclick="loadLogs()">↻ Refresh</button>
+      <button class="logout-btn" onclick="doLogout()">Log out</button>
+    </div>
+
+    <!-- Patient info bar -->
+    <div class="patient-bar">
+      <div class="patient-avatar" id="patientAvatar">?</div>
+      <div>
+        <div class="patient-name" id="patientNameDisplay">—</div>
+        <div class="patient-meta" id="patientMeta">Loading…</div>
+      </div>
+      <div class="last-seen">
+        <strong id="lastSeenTime">—</strong>
+        last activity
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total events</div>
+        <div class="stat-value blue" id="statTotal">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Face scans</div>
+        <div class="stat-value green" id="statFace">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Text reads</div>
+        <div class="stat-value green" id="statOcr">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Object scans</div>
+        <div class="stat-value amber" id="statObj">—</div>
+      </div>
+    </div>
+
+    <!-- Log table -->
+    <div class="log-wrap">
+      <table class="log-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Event</th>
+            <th>Detail</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="logBody">
+          <tr class="loading-row"><td colspan="4">Loading activity log…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SERVER = window.location.origin;
+let allLogs = [];
+let currentUserId = null;
+let currentUserName = "";
+
+// ── Load patient list on page load ──────────────────────────────────────────
+async function loadPatients() {
+  try {
+    const res = await fetch(`${SERVER}/users`);
+    const d = await res.json();
+    const sel = document.getElementById("patientSelect");
+    if (!d.users || d.users.length === 0) {
+      sel.innerHTML = '<option value="">No patients registered yet</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">— Select patient —</option>' +
+      d.users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+  } catch {
+    document.getElementById("patientSelect").innerHTML =
+      '<option value="">Could not load patients</option>';
+  }
+}
+
+// ── Login ────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const sel = document.getElementById("patientSelect");
+  const userId = sel.value;
+  const name = sel.options[sel.selectedIndex]?.text;
+  if (!userId) {
+    document.getElementById("loginError").textContent = "Please select a patient.";
+    return;
+  }
+  document.getElementById("loginBtn").disabled = true;
+  document.getElementById("loginBtn").textContent = "Loading…";
+  document.getElementById("loginError").textContent = "";
+
+  currentUserId = userId;
+  currentUserName = name;
+  await loadLogs();
+
+  document.getElementById("loginSection").style.display = "none";
+  document.getElementById("dashSection").style.display = "block";
+  document.getElementById("loginBtn").disabled = false;
+  document.getElementById("loginBtn").textContent = "View Activity Log";
+}
+
+// ── Load logs from /caregiver ─────────────────────────────────────────────
+async function loadLogs() {
+  document.getElementById("logBody").innerHTML =
+    '<tr class="loading-row"><td colspan="4">Refreshing…</td></tr>';
+  try {
+    const res = await fetch(`${SERVER}/caregiver`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({user_id: currentUserId})
+    });
+    const d = await res.json();
+    allLogs = d.logs || [];
+    currentUserName = d.user_name || currentUserName;
+    renderPatientBar(d);
+    renderStats();
+    applyFilter();
+  } catch {
+    document.getElementById("logBody").innerHTML =
+      '<tr class="loading-row"><td colspan="4">Failed to load logs. Check connection.</td></tr>';
+  }
+}
+
+// ── Patient bar ──────────────────────────────────────────────────────────────
+function renderPatientBar(d) {
+  const name = d.user_name || currentUserName;
+  document.getElementById("patientNameDisplay").textContent = name;
+  document.getElementById("patientAvatar").textContent = name.charAt(0).toUpperCase();
+  document.getElementById("dashTitle").textContent = `Activity Log — ${name}`;
+  const total = allLogs.length;
+  document.getElementById("patientMeta").textContent =
+    `${total} event${total !== 1 ? "s" : ""} recorded (last 50 shown)`;
+  if (allLogs.length > 0) {
+    const last = allLogs[0].timestamp;
+    document.getElementById("lastSeenTime").textContent = formatTime(last);
+  }
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+function renderStats() {
+  document.getElementById("statTotal").textContent = allLogs.length;
+  document.getElementById("statFace").textContent =
+    allLogs.filter(l => l.action === "face_scan").length;
+  document.getElementById("statOcr").textContent =
+    allLogs.filter(l => l.action === "ocr_scan").length;
+  document.getElementById("statObj").textContent =
+    allLogs.filter(l => l.action === "object_scan").length;
+}
+
+// ── Filter + render ──────────────────────────────────────────────────────────
+function applyFilter() {
+  const filter = document.getElementById("filterSelect").value;
+  const filtered = filter === "all"
+    ? allLogs
+    : allLogs.filter(l => l.action === filter);
+  renderTable(filtered);
+}
+
+function renderTable(logs) {
+  if (logs.length === 0) {
+    document.getElementById("logBody").innerHTML = `
+      <tr><td colspan="4">
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          No events found for this filter.
+        </div>
+      </td></tr>`;
+    return;
+  }
+  document.getElementById("logBody").innerHTML = logs.map((l, i) => `
+    <tr>
+      <td style="color:var(--text-muted);font-size:12px">${i + 1}</td>
+      <td><span class="action-badge ${badgeClass(l.action)}">${friendlyAction(l.action)}</span></td>
+      <td class="detail-cell">${escHtml(l.detail || "—")}</td>
+      <td class="time-cell">
+        <span class="time-date">${formatDate(l.timestamp)}</span>
+        ${formatTimeOnly(l.timestamp)}
+      </td>
+    </tr>`).join('');
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function badgeClass(action) {
+  const map = {
+    face_scan: "badge-face", ocr_scan: "badge-ocr",
+    object_scan: "badge-object", login: "badge-login",
+    register: "badge-register", forget: "badge-forget",
+    update_person: "badge-update"
+  };
+  return map[action] || "badge-default";
+}
+
+function friendlyAction(action) {
+  const map = {
+    face_scan: "Face scan", ocr_scan: "Text read",
+    object_scan: "Object scan", login: "Login",
+    register: "Registered face", forget: "Removed face",
+    update_person: "Updated info"
+  };
+  return map[action] || action;
+}
+
+function formatDate(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  return d.toLocaleDateString("en-IN", {day:"2-digit", month:"short", year:"numeric"});
+}
+
+function formatTimeOnly(ts) {
+  if (!ts) return "";
+  const d = new Date(ts);
+  return d.toLocaleTimeString("en-IN", {hour:"2-digit", minute:"2-digit"});
+}
+
+function formatTime(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 60000);
+  if (diff < 1) return "just now";
+  if (diff < 60) return `${diff} min ago`;
+  if (diff < 1440) return `${Math.floor(diff/60)} hr ago`;
+  return formatDate(ts);
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function doLogout() {
+  currentUserId = null;
+  currentUserName = "";
+  allLogs = [];
+  document.getElementById("dashSection").style.display = "none";
+  document.getElementById("loginSection").style.display = "block";
+  document.getElementById("filterSelect").value = "all";
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+loadPatients();
+
+// Auto-refresh every 30 seconds when dashboard is visible
+setInterval(() => {
+  if (currentUserId && document.getElementById("dashSection").style.display !== "none") {
+    loadLogs();
+  }
+}, 30000);
+</script>
+</body>
+</html>

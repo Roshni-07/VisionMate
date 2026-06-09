@@ -522,13 +522,14 @@ let userId = null, userName = null;
 let videoStream = null;
 let currentFacing = "environment";
 let currentZoom   = 1;
-let autoInterval = null;
-let isAutoMode   = false;
-let recognition  = null;
-let isListening  = false;
-let isBusy       = false;
-let isMuted      = false;
+let autoInterval  = null;
+let isAutoMode    = false;
+let recognition   = null;
+let isListening   = false;
+let isBusy        = false;
+let isMuted       = false;
 let isHighContrast = false;
+let lastObjectResult = "";   // smart auto-mode: skip if same result as last scan
 
 // ── Login ──────────────────────────────────────────────────────────────────
 async function doLogin() {
@@ -669,13 +670,29 @@ function toggleMute() {
 }
 
 // ── API Calls ──────────────────────────────────────────────────────────────
-async function apiPost(endpoint, body) {
-  const res = await fetch(`${SERVER}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  return res.json();
+async function apiPost(endpoint, body, retries = 2) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${SERVER}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (err) {
+      if (attempt < retries) {
+        const msg = attempt === 0
+          ? "Server waking up, please wait…"
+          : "Retrying…";
+        setResult(msg, false);
+        speak(msg);
+        await new Promise(r => setTimeout(r, 6000));  // wait 6s between retries
+      } else {
+        throw err;  // all retries exhausted — caller handles
+      }
+    }
+  }
 }
 
 async function runFace() {
@@ -688,7 +705,7 @@ async function runFace() {
     // Pass user_id so backend can log the scan
     const d = await apiPost("/face", { user_id: userId, image });
     setResult(d.result || d.error || "No result.");
-  } catch { setResult("Network error."); }
+  } catch { setResult("Could not connect. Check your internet connection."); }
   isBusy = false;
 }
 
@@ -702,7 +719,7 @@ async function runOCR() {
     // Pass user_id so backend can log the scan
     const d = await apiPost("/ocr", { user_id: userId, image });
     setResult(d.result || d.error || "No text found.");
-  } catch { setResult("Network error."); }
+  } catch { setResult("Could not connect. Check your internet connection."); }
   isBusy = false;
 }
 
@@ -802,6 +819,8 @@ async function autoCapture() {
     if (d.count && d.count > 0) {
       doFlash();
       setResult(d.result);
+      speak(d.result);
+      lastObjectResult = "";   // reset — face seen, environment may have changed
       isBusy = false;
       return;
     }
@@ -809,8 +828,13 @@ async function autoCapture() {
   try {
     const d = await apiPost("/object", { user_id: userId, image });
     if (d.tags && d.tags.length > 0) {
-      doFlash();
-      setResult(d.result);
+      if (d.result !== lastObjectResult) {   // only announce if scene changed
+        doFlash();
+        setResult(d.result);
+        speak(d.result);
+        lastObjectResult = d.result;
+      }
+      // else: scene unchanged, stay silent
     }
   } catch {}
   isBusy = false;

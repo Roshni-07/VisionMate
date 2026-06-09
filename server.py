@@ -86,19 +86,6 @@ def compress_image_b64(image_bytes, max_size=(800, 800), quality=75):
     img.save(buf, format="JPEG", quality=quality)
     return base64.b64encode(buf.getvalue()).decode()
 
-def compress_image_b64_ocr(image_bytes, max_size=(1200, 1200), quality=90):
-    """OCR-specific preprocessing: higher res + grayscale + contrast + sharpen."""
-    from PIL import ImageEnhance, ImageFilter
-    img = Image.open(io.BytesIO(image_bytes))
-    img.thumbnail(max_size, Image.LANCZOS)
-    img = img.convert("L")                          # grayscale — removes color noise
-    img = ImageEnhance.Contrast(img).enhance(2.0)   # boost contrast for faded text
-    img = img.filter(ImageFilter.SHARPEN)           # sharpen edges of characters
-    img = img.convert("RGB")                        # OCR.space needs RGB/JPEG
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=quality)
-    return base64.b64encode(buf.getvalue()).decode()
-
 def facepp_post(endpoint, extra_data=None, image_b64=None):
     data = {"api_key": FACEPP_KEY, "api_secret": FACEPP_SECRET}
     if extra_data:
@@ -242,9 +229,6 @@ def ocr():
     image_b64 = data.get("image", "")
     if "," in image_b64:
         image_b64 = image_b64.split(",", 1)[1]
-    # Preprocess: grayscale + contrast + sharpen before OCR
-    image_bytes = base64.b64decode(image_b64)
-    image_b64 = compress_image_b64_ocr(image_bytes)
     resp = requests.post(
         "https://api.ocr.space/parse/image",
         data={
@@ -478,6 +462,17 @@ def caregiver():
         "user_name": user["name"] if user else "Unknown",
         "logs": [{"action": r["action"], "detail": r["detail"], "timestamp": r["timestamp"], "location": r["location"]} for r in logs]
     })
+
+@app.route("/users", methods=["GET"])
+def list_users():
+    db = get_db()
+    users = db.execute("SELECT id, name FROM users ORDER BY name ASC").fetchall()
+    db.close()
+    return jsonify({"users": [{"id": r["id"], "name": r["name"]} for r in users]})
+
+@app.route("/caregiver-dashboard")
+def caregiver_dashboard():
+    return send_file("caregiver_dashboard.html")
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
