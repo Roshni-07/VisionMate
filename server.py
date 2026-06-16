@@ -141,7 +141,7 @@ def clean_ocr_text(raw):
 
 @app.route("/status")
 def status():
-    return jsonify({"status": "ok", "version": "4.1"})
+    return jsonify({"status": "ok", "version": "4.2"})
 
 @app.route("/app")
 def serve_app():
@@ -216,9 +216,20 @@ def face():
                 best = results[0]
                 confidence = round(results[0]["confidence"], 1)
                 db = get_db()
+                matched_token = best["face_token"]
+                # face_token column may store multiple comma-separated tokens
                 person = db.execute(
-                    "SELECT name, description FROM persons WHERE face_token=? AND user_id=?",
-                    (best["face_token"], user_id)
+                    """SELECT name, description FROM persons
+                       WHERE user_id=? AND (
+                           face_token = ? OR
+                           face_token LIKE ? OR
+                           face_token LIKE ? OR
+                           face_token LIKE ?
+                       )""",
+                    (user_id, matched_token,
+                     matched_token + ",%",
+                     "%," + matched_token,
+                     "%," + matched_token + ",%")
                 ).fetchone()
                 db.close()
                 if person:
@@ -410,48 +421,79 @@ def object_detect():
 
     return jsonify({"result": result, "tags": deduped})
 
-# ── Register ──────────────────────────────────────────────────────────────────
+# ── Register — multi-angle (accepts images[] array OR single image) ────────────
 @app.route("/register", methods=["POST"])
 def register():
-    data = request.get_json()
+    data        = request.get_json()
     user_id     = data.get("user_id")
     name        = data.get("name", "").strip()
-    image_b64   = data.get("image", "")
     description = data.get("description", "").strip()
-    if not all([user_id, name, image_b64]):
+
+    # Accept either images[] (multi-angle) or legacy image (single)
+    images_raw = data.get("images") or ([data.get("image")] if data.get("image") else [])
+    if not all([user_id, name]) or not images_raw:
         return jsonify({"error": "Missing data"}), 400
-    if "," in image_b64:
-        image_b64 = image_b64.split(",", 1)[1]
-    image_bytes = base64.b64decode(image_b64)
-    image_b64c  = compress_image_b64(image_bytes)
-    detect_res = facepp_post("/facepp/v3/detect", image_b64=image_b64c)
-    faces = detect_res.get("faces", [])
-    if not faces:
-        return jsonify({"error": "No face detected in image"}), 400
-    face_token    = faces[0]["face_token"]
+
     faceset_token = ensure_faceset(user_id, name)
-    facepp_post("/facepp/v3/faceset/addface", {
-        "faceset_token": faceset_token,
-        "face_tokens": face_token
-    })
+    collected_tokens = []
+    failed = 0
+
+    for img_b64 in images_raw:
+        if not img_b64:
+            continue
+        if "," in img_b64:
+            img_b64 = img_b64.split(",", 1)[1]
+        try:
+            image_bytes = base64.b64decode(img_b64)
+            image_b64c  = compress_image_b64(image_bytes)
+            detect_res  = facepp_post("/facepp/v3/detect", image_b64=image_b64c)
+            faces = detect_res.get("faces", [])
+            if not faces:
+                failed += 1
+                continue
+            token = faces[0]["face_token"]
+            # Add each token to faceset immediately
+            facepp_post("/facepp/v3/faceset/addface", {
+                "faceset_token": faceset_token,
+                "face_tokens": token
+            })
+            collected_tokens.append(token)
+        except Exception:
+            failed += 1
+            continue
+
+    if not collected_tokens:
+        return jsonify({"error": "No face detected in any of the provided images"}), 400
+
+    # Store comma-separated tokens — all angles for this person
+    tokens_str = ",".join(collected_tokens)
     db = get_db()
     existing = db.execute(
-        "SELECT id FROM persons WHERE user_id=? AND name=?", (user_id, name)
+        "SELECT id, face_token FROM persons WHERE user_id=? AND name=?", (user_id, name)
     ).fetchone()
     if existing:
+        # Merge new tokens with any previously stored ones (avoid duplicates)
+        prev = existing["face_token"] or ""
+        merged = ",".join(dict.fromkeys((prev + "," + tokens_str).strip(",").split(",")))
         db.execute(
             "UPDATE persons SET face_token=?, description=? WHERE id=?",
-            (face_token, description, existing["id"])
+            (merged, description, existing["id"])
         )
     else:
         db.execute(
             "INSERT INTO persons (user_id, name, face_token, description) VALUES (?,?,?,?)",
-            (user_id, name, face_token, description)
+            (user_id, name, tokens_str, description)
         )
     db.commit()
     db.close()
-    log_activity(user_id, "register", name)
-    return jsonify({"result": f"{name} has been registered successfully."})
+
+    angle_word = f"{len(collected_tokens)} angle{'s' if len(collected_tokens) > 1 else ''}"
+    log_activity(user_id, "register", f"{name} ({angle_word})")
+    return jsonify({
+        "result": f"{name} registered successfully with {angle_word}.",
+        "tokens_saved": len(collected_tokens),
+        "failed_images": failed
+    })
 
 # ── Forget ────────────────────────────────────────────────────────────────────
 @app.route("/forget", methods=["POST"])
@@ -468,13 +510,16 @@ def forget():
     if not person:
         db.close()
         return jsonify({"error": f"{name} not found"}), 404
-    face_token   = person["face_token"]
+    face_token   = person["face_token"]  # may be comma-separated
     faceset_row  = db.execute("SELECT faceset_token FROM users WHERE id=?", (user_id,)).fetchone()
     if faceset_row and faceset_row["faceset_token"]:
-        facepp_post("/facepp/v3/faceset/removeface", {
-            "faceset_token": faceset_row["faceset_token"],
-            "face_tokens": face_token
-        })
+        # Remove all stored tokens (multi-angle)
+        all_tokens = [t.strip() for t in face_token.split(",") if t.strip()]
+        for tok in all_tokens:
+            facepp_post("/facepp/v3/faceset/removeface", {
+                "faceset_token": faceset_row["faceset_token"],
+                "face_tokens": tok
+            })
     db.execute("DELETE FROM persons WHERE user_id=? AND name=?", (user_id, name))
     db.commit()
     db.close()

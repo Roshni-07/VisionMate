@@ -413,13 +413,23 @@
   }
   .person-chip .del { cursor: pointer; color: var(--danger); font-size: 1rem; margin-left: 4px; }
 
-  /* Voice hint */
-  .voice-hint {
-    font-size: 0.8rem;
-    color: var(--muted);
-    text-align: center;
-    padding: 0 16px 16px;
-    line-height: 1.8;
+  /* Angle capture buttons */
+  .angle-btn {
+    flex: 1;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 6px;
+    color: var(--text);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    min-height: 48px;
+  }
+  .angle-btn.captured {
+    border-color: var(--success);
+    color: var(--success);
+    background: rgba(74,222,128,0.08);
   }
 </style>
 </head>
@@ -509,9 +519,23 @@
       <label>Description (optional)</label>
       <input type="text" id="regDesc" placeholder="e.g. daughter, wears glasses" />
     </div>
+
+    <!-- 3-angle capture -->
+    <div style="margin-top:18px">
+      <div style="font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px">
+        Capture 3 Angles for better accuracy
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:6px">
+        <button class="angle-btn" id="angleBtn0" onclick="captureAngle(0)">📸 Front</button>
+        <button class="angle-btn" id="angleBtn1" onclick="captureAngle(1)">📸 Left</button>
+        <button class="angle-btn" id="angleBtn2" onclick="captureAngle(2)">📸 Right</button>
+      </div>
+      <div style="font-size:0.8rem;color:var(--muted)" id="angleStatus">0 of 3 captured (minimum 1 required)</div>
+    </div>
+
     <div class="modal-btns">
       <button class="btn-secondary" onclick="closeRegister()">Cancel</button>
-      <button class="btn-confirm" onclick="doRegister()">📸 Capture &amp; Register</button>
+      <button class="btn-confirm" id="regSubmitBtn" onclick="doRegister()">✅ Register</button>
     </div>
   </div>
 </div>
@@ -738,23 +762,44 @@ async function runObject() {
 }
 
 // ── Register ───────────────────────────────────────────────────────────────
+let capturedAngles = [null, null, null];  // front, left, right
+const ANGLE_LABELS = ["Front", "Left", "Right"];
+
 function openRegister() {
+  capturedAngles = [null, null, null];
+  document.querySelectorAll(".angle-btn").forEach((btn, i) => {
+    btn.classList.remove("captured");
+    btn.textContent = `📸 ${ANGLE_LABELS[i]}`;
+  });
+  document.getElementById("angleStatus").textContent = "0 of 3 captured (minimum 1 required)";
   document.getElementById("registerModal").classList.add("open");
 }
+
 function closeRegister() {
   document.getElementById("registerModal").classList.remove("open");
+}
+
+function captureAngle(index) {
+  doFlash();
+  capturedAngles[index] = captureFrame();
+  const btn = document.getElementById(`angleBtn${index}`);
+  btn.classList.add("captured");
+  btn.textContent = `✅ ${ANGLE_LABELS[index]}`;
+  const count = capturedAngles.filter(Boolean).length;
+  document.getElementById("angleStatus").textContent =
+    `${count} of 3 captured${count === 3 ? " — ready to register!" : " (minimum 1 required)"}`;
 }
 
 async function doRegister() {
   const name = document.getElementById("regName").value.trim();
   const desc = document.getElementById("regDesc").value.trim();
   if (!name) return alert("Enter a name.");
-  doFlash();
-  const image = captureFrame();
+  const images = capturedAngles.filter(Boolean);
+  if (images.length === 0) return alert("Capture at least 1 photo first.");
   closeRegister();
-  setResult(`Registering ${name}…`, true);
+  setResult(`Registering ${name} (${images.length} angle${images.length > 1 ? "s" : ""})…`, true);
   try {
-    const d = await apiPost("/register", { user_id: userId, name, image, description: desc });
+    const d = await apiPost("/register", { user_id: userId, name, images, description: desc });
     setResult(d.result || d.error || "Done.");
     loadPersons();
   } catch { setResult("Network error."); }
