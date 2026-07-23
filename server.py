@@ -109,8 +109,11 @@ def facepp_post(endpoint, extra_data=None, image_b64=None):
         data.update(extra_data)
     if image_b64:
         data["image_base64"] = image_b64
-    r = requests.post(f"https://api-us.faceplusplus.com{endpoint}", data=data, timeout=20)
-    return r.json()
+    try:
+        r = requests.post(f"https://api-us.faceplusplus.com{endpoint}", data=data, timeout=20)
+        return r.json()
+    except requests.exceptions.RequestException:
+        return {"error_message": "NETWORK_ERROR"}
 
 def ensure_faceset(user_id, user_name):
     db = get_db()
@@ -185,6 +188,8 @@ def face():
     image_b64c  = compress_image_b64(image_bytes)
 
     detect_res = facepp_post("/facepp/v3/detect", image_b64=image_b64c)
+    if detect_res.get("error_message"):
+        return jsonify({"result": "Face detection service unavailable right now. Try again.", "count": 0})
     faces = detect_res.get("faces", [])
     if not faces:
         return jsonify({"result": "No faces detected in the image.", "count": 0})
@@ -238,15 +243,24 @@ def face():
                     label = person["name"]
                     if person["description"]:
                         label += f" ({person['description']})"
-                    named.append({"name": label, "confidence": confidence})
+                    named.append({"name": label, "confidence": confidence, "borderline": confidence < 85})
                     recognized = True
         if not recognized:
             unknown_count += 1
 
     parts = []
     if named:
-        name_list = ", ".join(n["name"] for n in named)
-        parts.append("I can see " + name_list + ".")
+        seen_names = set()
+        confident, borderline = [], []
+        for n in named:
+            if n["name"] in seen_names:
+                continue
+            seen_names.add(n["name"])
+            (borderline if n["borderline"] else confident).append(n["name"])
+        if confident:
+            parts.append("I can see " + ", ".join(confident) + ".")
+        if borderline:
+            parts.append("Possibly " + ", ".join(borderline) + " — not fully certain.")
     if unknown_count == 1:
         parts.append("There is 1 unregistered face.")
     elif unknown_count > 1:
@@ -272,21 +286,28 @@ def ocr():
     image_b64 = data.get("image", "")
     if "," in image_b64:
         image_b64 = image_b64.split(",", 1)[1]
+    if not OCRSPACE_KEY:
+        return jsonify({"result": "Text reading not configured. Add OCRSPACE_KEY in Render environment variables."})
     image_bytes = base64.b64decode(image_b64)
     image_b64c  = compress_image_b64_ocr(image_bytes)
-    resp = requests.post(
-        "https://api.ocr.space/parse/image",
-        data={
-            "apikey": OCRSPACE_KEY,
-            "base64Image": f"data:image/jpeg;base64,{image_b64c}",
-            "isOverlayRequired": False,
-            "language": "eng",
-            "isCreateSearchablePdf": False,
-            "OCREngine": 2,
-        },
-        timeout=30
-    )
-    result = resp.json()
+    try:
+        resp = requests.post(
+            "https://api.ocr.space/parse/image",
+            data={
+                "apikey": OCRSPACE_KEY,
+                "base64Image": f"data:image/jpeg;base64,{image_b64c}",
+                "isOverlayRequired": False,
+                "language": "eng",
+                "isCreateSearchablePdf": False,
+                "OCREngine": 2,
+            },
+            timeout=30
+        )
+        result = resp.json()
+    except requests.exceptions.RequestException:
+        return jsonify({"result": "Text reading service unavailable right now. Try again."})
+    if result.get("IsErroredOnProcessing"):
+        return jsonify({"result": "Could not read any text."})
     parsed = result.get("ParsedResults", [])
     if not parsed:
         return jsonify({"result": "Could not read any text."})
@@ -311,13 +332,16 @@ def object_detect():
         return jsonify({"result": "Object detection not configured. Add IMAGGA_KEY and IMAGGA_SECRET in Render environment variables."})
     image_bytes = base64.b64decode(image_b64)
     image_b64c  = compress_image_b64_object(image_bytes)
-    resp = requests.post(
-        "https://api.imagga.com/v2/tags",
-        auth=(IMAGGA_KEY, IMAGGA_SECRET),
-        data={"image_base64": image_b64c},
-        timeout=20
-    )
-    res = resp.json()
+    try:
+        resp = requests.post(
+            "https://api.imagga.com/v2/tags",
+            auth=(IMAGGA_KEY, IMAGGA_SECRET),
+            data={"image_base64": image_b64c},
+            timeout=20
+        )
+        res = resp.json()
+    except requests.exceptions.RequestException:
+        return jsonify({"result": "Object detection service unavailable right now. Try again."})
     tags = res.get("result", {}).get("tags", [])
     if not tags:
         return jsonify({"result": "Could not identify any objects."})
@@ -457,6 +481,9 @@ def register():
             image_bytes = base64.b64decode(img_b64)
             image_b64c  = compress_image_b64(image_bytes)
             detect_res  = facepp_post("/facepp/v3/detect", image_b64=image_b64c)
+            if detect_res.get("error_message"):
+                failed += 1
+                continue
             faces = detect_res.get("faces", [])
             if not faces:
                 failed += 1
