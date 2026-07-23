@@ -85,6 +85,14 @@ def compress_image_b64(image_bytes, max_size=(800, 800), quality=75):
     img.save(buf, format="JPEG", quality=quality)
     return base64.b64encode(buf.getvalue()).decode()
 
+def compress_image_b64_object(image_bytes, max_size=(1024, 1024), quality=85):
+    """Higher-res than default compress — Imagga tags improve with more detail."""
+    img = Image.open(io.BytesIO(image_bytes))
+    img.thumbnail(max_size, Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=quality)
+    return base64.b64encode(buf.getvalue()).decode()
+
 def compress_image_b64_ocr(image_bytes):
     from PIL import ImageEnhance, ImageFilter
     img = Image.open(io.BytesIO(image_bytes)).convert("L")
@@ -302,7 +310,7 @@ def object_detect():
     if not IMAGGA_KEY or not IMAGGA_SECRET:
         return jsonify({"result": "Object detection not configured. Add IMAGGA_KEY and IMAGGA_SECRET in Render environment variables."})
     image_bytes = base64.b64decode(image_b64)
-    image_b64c  = compress_image_b64(image_bytes)
+    image_b64c  = compress_image_b64_object(image_bytes)
     resp = requests.post(
         "https://api.imagga.com/v2/tags",
         auth=(IMAGGA_KEY, IMAGGA_SECRET),
@@ -326,7 +334,10 @@ def object_detect():
         "art", "illustration", "graphic", "texture", "pattern", "background",
         "shape", "object", "thing", "item", "element", "material", "surface",
         "light", "dark", "white", "black", "indoor", "outdoor", "nobody",
-        "no person", "single", "isolated", "closeup", "close-up", "style"
+        "no person", "single", "isolated", "closeup", "close-up", "style",
+        # body parts — creep in when object held close to camera
+        "finger", "fingers", "hand", "hands", "skin", "nail", "nails",
+        "thumb", "palm", "arm", "wrist", "knuckle"
     }
 
     SYNONYM_GROUPS = [
@@ -410,9 +421,14 @@ def object_detect():
     if not deduped:
         return jsonify({"result": "Could not identify any objects clearly."})
 
-    result = "I can see: " + ", ".join(deduped) + "."
+    top_tag_conf = filtered[0].get("confidence", 0) if filtered else 0
+    if top_tag_conf < 55:
+        result = "This might be: " + ", ".join(deduped) + ". Move closer or improve lighting for a clearer read."
+    else:
+        result = "I can see: " + ", ".join(deduped) + "."
 
-    log_activity(user_id, "object_scan", result)
+    raw_debug = ", ".join(f"{t['tag']['en']}:{round(t.get('confidence',0),1)}" for t in tags[:5])
+    log_activity(user_id, "object_scan", f"{result} | raw_top5: {raw_debug}")
 
     return jsonify({"result": result, "tags": deduped})
 
