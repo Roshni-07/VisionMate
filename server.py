@@ -19,6 +19,7 @@ FACEPP_SECRET = os.environ.get("FACEPP_SECRET", "")
 OCRSPACE_KEY  = os.environ.get("OCRSPACE_KEY",  "")
 IMAGGA_KEY    = os.environ.get("IMAGGA_KEY",    "")
 IMAGGA_SECRET = os.environ.get("IMAGGA_SECRET", "")
+CAREGIVER_PHONE = os.environ.get("CAREGIVER_PHONE", "")
 
 
 DB_PATH = os.environ.get("DB_PATH", "visionmate.db")
@@ -44,7 +45,6 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
-    # NEW: activity log table — tracks every scan event
     c.execute("""
         CREATE TABLE IF NOT EXISTS activity_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +67,6 @@ def get_db():
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def log_activity(user_id, action, detail="", location=""):
-    """Log an activity event to the database."""
     try:
         db = get_db()
         db.execute(
@@ -77,7 +76,7 @@ def log_activity(user_id, action, detail="", location=""):
         db.commit()
         db.close()
     except Exception:
-        pass  # Never crash a scan just because logging failed
+        pass
 
 def compress_image_b64(image_bytes, max_size=(800, 800), quality=75):
     img = Image.open(io.BytesIO(image_bytes))
@@ -87,7 +86,6 @@ def compress_image_b64(image_bytes, max_size=(800, 800), quality=75):
     return base64.b64encode(buf.getvalue()).decode()
 
 def compress_image_b64_ocr(image_bytes):
-    """Grayscale + contrast + sharpen + 1200px for OCR."""
     from PIL import ImageEnhance, ImageFilter
     img = Image.open(io.BytesIO(image_bytes)).convert("L")
     img = ImageEnhance.Contrast(img).enhance(2.0)
@@ -183,12 +181,10 @@ def face():
     if not faces:
         return jsonify({"result": "No faces detected in the image.", "count": 0})
 
-    # Sort by bounding box area descending — largest = nearest to camera
     faces.sort(
         key=lambda f: f["face_rectangle"]["width"] * f["face_rectangle"]["height"],
         reverse=True
     )
-    # Process top 3 only (ignore tiny background faces)
     faces = faces[:3]
 
     db = get_db()
@@ -207,7 +203,6 @@ def face():
                 "/facepp/v3/search",
                 {"faceset_token": faceset_token, "face_token": token}
             )
-            # Guard: skip if Face++ returned an error
             if search_res.get("error_message"):
                 unknown_count += 1
                 continue
@@ -217,7 +212,6 @@ def face():
                 confidence = round(results[0]["confidence"], 1)
                 db = get_db()
                 matched_token = best["face_token"]
-                # face_token column may store multiple comma-separated tokens
                 person = db.execute(
                     """SELECT name, description FROM persons
                        WHERE user_id=? AND (
@@ -243,7 +237,6 @@ def face():
 
     parts = []
     if named:
-        # Nearest first (already sorted by proximity)
         name_list = ", ".join(n["name"] for n in named)
         parts.append("I can see " + name_list + ".")
     if unknown_count == 1:
@@ -253,7 +246,6 @@ def face():
 
     result = " ".join(parts) if parts else "No recognized faces found."
 
-    # Log with confidence scores
     log_detail = ", ".join(f"{n['name']} ({n['confidence']}%)" for n in named) if named else result
     log_activity(user_id, "face_scan", log_detail)
 
@@ -295,7 +287,6 @@ def ocr():
     if not cleaned:
         return jsonify({"result": "No readable text found."})
 
-    # Log scan
     log_activity(user_id, "ocr_scan", cleaned[:100])
 
     return jsonify({"result": cleaned})
@@ -323,7 +314,12 @@ def object_detect():
     if not tags:
         return jsonify({"result": "Could not identify any objects."})
 
-    filtered = [t for t in tags if t.get("confidence", 0) > 30]
+    # FIX: raised floor 30 -> 45, plus relative-margin filter vs top tag
+    # kills low-confidence noise (pen/finger on a slipper) that passed before
+    filtered = [t for t in tags if t.get("confidence", 0) > 45]
+    if filtered:
+        top_conf = filtered[0].get("confidence", 0)
+        filtered = [t for t in filtered if t.get("confidence", 0) >= top_conf * 0.55]
 
     USELESS_TAGS = {
         "image", "photography", "photo", "picture", "color", "colour", "design",
@@ -379,7 +375,7 @@ def object_detect():
         ({"bag","backpack","handbag","purse","suitcase","luggage"}, "bag"),
         ({"glasses","spectacles","sunglasses","eyeglasses"}, "glasses"),
         ({"helmet","hard hat"}, "helmet"),
-        ({"shoes","sneakers","sandals","boots","footwear"}, "shoes"),
+        ({"shoes","sneakers","sandals","boots","footwear","slipper","slippers","flip flop","flip-flop","flip flops","sandal"}, "footwear"),
         ({"umbrella","parasol"}, "umbrella"),
         ({"medicine","pill","tablet","capsule","syringe","injection"}, "medicine"),
         ({"wheelchair"}, "wheelchair"),
@@ -416,7 +412,6 @@ def object_detect():
 
     result = "I can see: " + ", ".join(deduped) + "."
 
-    # Log scan
     log_activity(user_id, "object_scan", result)
 
     return jsonify({"result": result, "tags": deduped})
@@ -429,7 +424,6 @@ def register():
     name        = data.get("name", "").strip()
     description = data.get("description", "").strip()
 
-    # Accept either images[] (multi-angle) or legacy image (single)
     images_raw = data.get("images") or ([data.get("image")] if data.get("image") else [])
     if not all([user_id, name]) or not images_raw:
         return jsonify({"error": "Missing data"}), 400
@@ -452,7 +446,6 @@ def register():
                 failed += 1
                 continue
             token = faces[0]["face_token"]
-            # Add each token to faceset immediately
             facepp_post("/facepp/v3/faceset/addface", {
                 "faceset_token": faceset_token,
                 "face_tokens": token
@@ -465,14 +458,12 @@ def register():
     if not collected_tokens:
         return jsonify({"error": "No face detected in any of the provided images"}), 400
 
-    # Store comma-separated tokens — all angles for this person
     tokens_str = ",".join(collected_tokens)
     db = get_db()
     existing = db.execute(
         "SELECT id, face_token FROM persons WHERE user_id=? AND name=?", (user_id, name)
     ).fetchone()
     if existing:
-        # Merge new tokens with any previously stored ones (avoid duplicates)
         prev = existing["face_token"] or ""
         merged = ",".join(dict.fromkeys((prev + "," + tokens_str).strip(",").split(",")))
         db.execute(
@@ -510,10 +501,9 @@ def forget():
     if not person:
         db.close()
         return jsonify({"error": f"{name} not found"}), 404
-    face_token   = person["face_token"]  # may be comma-separated
+    face_token   = person["face_token"]
     faceset_row  = db.execute("SELECT faceset_token FROM users WHERE id=?", (user_id,)).fetchone()
     if faceset_row and faceset_row["faceset_token"]:
-        # Remove all stored tokens (multi-angle)
         all_tokens = [t.strip() for t in face_token.split(",") if t.strip()]
         for tok in all_tokens:
             facepp_post("/facepp/v3/faceset/removeface", {
