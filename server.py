@@ -336,7 +336,7 @@ def object_detect():
         resp = requests.post(
             "https://api.imagga.com/v2/tags",
             auth=(IMAGGA_KEY, IMAGGA_SECRET),
-            data={"image_base64": image_b64c},
+            data={"image_base64": image_b64c, "limit": 30, "language": "en"},
             timeout=20
         )
         res = resp.json()
@@ -348,10 +348,10 @@ def object_detect():
 
     # FIX: raised floor 30 -> 45, plus relative-margin filter vs top tag
     # kills low-confidence noise (pen/finger on a slipper) that passed before
-    filtered = [t for t in tags if t.get("confidence", 0) > 45]
+    filtered = [t for t in tags if t.get("confidence", 0) > 20]
     if filtered:
         top_conf = filtered[0].get("confidence", 0)
-        filtered = [t for t in filtered if t.get("confidence", 0) >= top_conf * 0.55]
+        filtered = [t for t in filtered if t.get("confidence", 0) >= top_conf * 0.5]
 
     USELESS_TAGS = {
         "image", "photography", "photo", "picture", "color", "colour", "design",
@@ -407,7 +407,10 @@ def object_detect():
         ({"spoon","fork","knife","cutlery","chopsticks"}, "spoon"),
         ({"microwave","oven","microwave oven"}, "microwave"),
         ({"refrigerator","fridge","freezer"}, "refrigerator"),
-        ({"bag","backpack","handbag","purse","suitcase","luggage"}, "bag"),
+        ({"bag","backpack","handbag","suitcase","luggage"}, "bag"),
+        ({"wallet","billfold","purse","pocketbook","money clip","card holder"}, "wallet"),
+        ({"stuffed animal","stuffed toy","soft toy","plush toy","plush","teddy bear","teddy","doll","toy"}, "soft toy"),
+        ({"blanket","quilt","throw blanket","comforter","duvet","textile","fabric","bedspread"}, "blanket"),
         ({"glasses","spectacles","sunglasses","eyeglasses"}, "glasses"),
         ({"helmet","hard hat"}, "helmet"),
         ({"shoes","sneakers","sandals","boots","footwear","slipper","slippers","flip flop","flip-flop","flip flops","sandal"}, "footwear"),
@@ -420,13 +423,50 @@ def object_detect():
         ({"bicycle","bike","cycle"}, "bicycle"),
         ({"bus","train","metro"}, "bus"),
         ({"person","man","woman","human","people","individual","adult","child"}, "person"),
+        ({"keys","key","keychain","key ring"}, "keys"),
+        ({"coin","coins","currency","money","cash","banknote","bill"}, "currency"),
+        ({"towel","hand towel","bath towel","napkin"}, "towel"),
+        ({"pillow","cushion","throw pillow"}, "pillow"),
+        ({"soap","hand soap","bar soap","body wash"}, "soap"),
+        ({"toothbrush"}, "toothbrush"),
+        ({"toothpaste"}, "toothpaste"),
+        ({"comb","hairbrush","hair brush"}, "comb"),
+        ({"charger","cable","wire","cord","usb cable","power cable","adapter"}, "cable"),
+        ({"broom","brush","sweeper"}, "broom"),
+        ({"bucket","pail"}, "bucket"),
+        ({"mop"}, "mop"),
+        ({"candle"}, "candle"),
+        ({"lighter","matchbox","matches"}, "lighter"),
+        ({"ball","football","cricket ball","tennis ball"}, "ball"),
+        ({"ring","necklace","bracelet","bangle","jewelry","jewellery","earring"}, "jewelry"),
+        ({"plant","houseplant","flower pot","potted plant","flower"}, "plant"),
+        ({"basket","laundry basket"}, "basket"),
+        ({"lock","padlock"}, "lock"),
+        ({"vase"}, "vase"),
+        ({"pillowcase","bedsheet","bed sheet"}, "bedsheet"),
     ]
 
     def get_canonical(label):
-        l = label.lower()
+        l = label.lower().strip()
         for group, canonical in SYNONYM_GROUPS:
             if l in group:
                 return canonical
+        # fallback: label contains a known synonym as a whole word/phrase
+        # (e.g. "portable laptop" or "gaming laptop" -> laptop) so variants
+        # Imagga returns don't slip through as separate unmapped duplicates
+        for group, canonical in SYNONYM_GROUPS:
+            for member in group:
+                if re.search(r'\b' + re.escape(member) + r'\b', l):
+                    return canonical
+        # fallback: strip simple trailing plural and recheck, so unmapped
+        # plural/singular pairs (e.g. "toy"/"toys") collapse to one entry
+        # instead of showing as two different objects
+        if l.endswith("s") and len(l) > 3 and not l.endswith("ss"):
+            singular = l[:-1]
+            for group, canonical in SYNONYM_GROUPS:
+                if singular in group:
+                    return canonical
+            return singular
         return l
 
     seen_canonical = set()
@@ -439,7 +479,7 @@ def object_detect():
         if canonical not in seen_canonical:
             seen_canonical.add(canonical)
             deduped.append(canonical)
-        if len(deduped) == 3:
+        if len(deduped) == 5:
             break
 
     if not deduped:
