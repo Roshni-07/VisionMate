@@ -455,12 +455,20 @@ def object_detect():
     if not tags:
         return jsonify({"result": "Could not identify any objects."})
 
-    # FIX: raised floor 30 -> 45, plus relative-margin filter vs top tag
-    # kills low-confidence noise (pen/finger on a slipper) that passed before
-    filtered = [t for t in tags if t.get("confidence", 0) > 20]
+    # Sort by confidence descending first — Imagga's response order isn't
+    # guaranteed, and the margin filter below is meaningless if "top" isn't
+    # actually the top. This was silently trusting response order before.
+    tags = sorted(tags, key=lambda t: t.get("confidence", 0), reverse=True)
+
+    # Floor raised 20 -> 45 (a prior comment claimed this was already done;
+    # the code below it still said 20 — that mismatch was letting weak,
+    # wrong guesses through as if they were solid reads).
+    # Margin tightened 0.5 -> 0.65 — a wrong tag now needs to be much closer
+    # to the top tag's confidence to survive, not just half of it.
+    filtered = [t for t in tags if t.get("confidence", 0) > 45]
     if filtered:
         top_conf = filtered[0].get("confidence", 0)
-        filtered = [t for t in filtered if t.get("confidence", 0) >= top_conf * 0.5]
+        filtered = [t for t in filtered if t.get("confidence", 0) >= top_conf * 0.65]
 
     USELESS_TAGS = {
         "image", "photography", "photo", "picture", "color", "colour", "design",
