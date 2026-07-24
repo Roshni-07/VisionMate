@@ -85,9 +85,18 @@ def compress_image_b64(image_bytes, max_size=(800, 800), quality=75):
     img.save(buf, format="JPEG", quality=quality)
     return base64.b64encode(buf.getvalue()).decode()
 
-def compress_image_b64_object(image_bytes, max_size=(1024, 1024), quality=85):
-    """Higher-res than default compress — Imagga tags improve with more detail."""
+def compress_image_b64_object(image_bytes, max_size=(1024, 1024), quality=85, crop_ratio=0.78):
+    """Higher-res than default compress — Imagga tags improve with more detail.
+    Center-crops before resizing: keeps the middle crop_ratio of width/height,
+    which is where a user points the camera at what they're asking about.
+    Cuts background wall/floor/room clutter that was diluting real tags —
+    same Imagga endpoint, no API change, just better input framing."""
     img = Image.open(io.BytesIO(image_bytes))
+    w, h = img.size
+    crop_w, crop_h = int(w * crop_ratio), int(h * crop_ratio)
+    left = (w - crop_w) // 2
+    top = (h - crop_h) // 2
+    img = img.crop((left, top, left + crop_w, top + crop_h))
     img.thumbnail(max_size, Image.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=quality)
@@ -483,7 +492,7 @@ def object_detect():
         if canonical not in seen_canonical:
             seen_canonical.add(canonical)
             deduped.append(canonical)
-        if len(deduped) == 5:
+        if len(deduped) == 7:
             break
 
     if not deduped:
