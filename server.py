@@ -359,6 +359,9 @@ def object_detect():
         "shape", "object", "thing", "item", "element", "material", "surface",
         "light", "dark", "white", "black", "indoor", "outdoor", "nobody",
         "no person", "single", "isolated", "closeup", "close-up", "style",
+        # generic scene/room descriptors — crowd out real object tags
+        "interior", "room", "home", "house", "equipment", "device",
+        "furniture", "wood", "wooden", "stuff", "workspace interior",
         # body parts — creep in when object held close to camera
         "finger", "fingers", "hand", "hands", "skin", "nail", "nails",
         "thumb", "palm", "arm", "wrist", "knuckle"
@@ -401,13 +404,14 @@ def object_detect():
         ({"stapler"}, "stapler"),
         ({"calculator"}, "calculator"),
         ({"cup","mug","glass","tumbler","teacup"}, "cup"),
-        ({"bottle","water bottle","flask","container","jar"}, "bottle"),
+        ({"bottle","water bottle","flask","container","jar","thermos","vacuum flask","insulated bottle"}, "bottle"),
         ({"plate","dish","tray","bowl"}, "plate"),
         ({"food","meal","snack","fruit","vegetable","bread","rice"}, "food"),
         ({"spoon","fork","knife","cutlery","chopsticks"}, "spoon"),
         ({"microwave","oven","microwave oven"}, "microwave"),
         ({"refrigerator","fridge","freezer"}, "refrigerator"),
-        ({"bag","backpack","handbag","suitcase","luggage"}, "bag"),
+        ({"bag","backpack","handbag","suitcase","luggage","pouch","zipper pouch"}, "bag"),
+        ({"id card","identity card","badge","lanyard","access card","name tag"}, "ID card"),
         ({"wallet","billfold","purse","pocketbook","money clip","card holder"}, "wallet"),
         ({"stuffed animal","stuffed toy","soft toy","plush toy","plush","teddy bear","teddy","doll","toy"}, "soft toy"),
         ({"blanket","quilt","throw blanket","comforter","duvet","textile","fabric","bedspread"}, "blanket"),
