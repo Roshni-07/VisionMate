@@ -435,16 +435,30 @@
 </head>
 <body>
 
-<!-- ── LOGIN ── -->
+<!-- ── LOGIN / SIGNUP ── -->
 <div id="loginScreen">
   <div class="logo">👁️</div>
   <div class="brand">VisionMate</div>
   <div class="tagline">AI assistant for vision &amp; memory</div>
-  <div class="input-group">
+
+  <div class="input-group" id="nameGroup" style="display:none;">
     <label>Your Name</label>
     <input type="text" id="nameInput" placeholder="Enter your name" autocomplete="off" />
   </div>
-  <button class="btn-primary" onclick="doLogin()">Get Started</button>
+  <div class="input-group">
+    <label>Email</label>
+    <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="username" />
+  </div>
+  <div class="input-group">
+    <label>Password</label>
+    <input type="password" id="passwordInput" placeholder="At least 6 characters" autocomplete="current-password" />
+  </div>
+
+  <button class="btn-primary" id="authSubmitBtn" onclick="doLogin()">Log In</button>
+  <div style="margin-top:16px; color:var(--muted); font-size:0.95rem; text-align:center;">
+    <span id="authToggleText">New here?</span>
+    <a href="javascript:void(0)" onclick="toggleAuthMode()" style="color:var(--accent); text-decoration:none; font-weight:600;" id="authToggleLink">Create an account</a>
+  </div>
 </div>
 
 <!-- ── MAIN APP ── -->
@@ -543,6 +557,8 @@
 <script>
 const SERVER = "https://visionmate-zi3m.onrender.com";
 let userId = null, userName = null;
+let authToken = localStorage.getItem("visionmate_token") || null;
+let isSignupMode = false;
 let videoStream = null;
 let currentFacing = "environment";
 let currentZoom   = 1;
@@ -555,34 +571,91 @@ let isMuted       = false;
 let isHighContrast = false;
 let lastObjectResult = "";   // smart auto-mode: skip if same result as last scan
 
-// ── Login ──────────────────────────────────────────────────────────────────
+// ── Login / Signup ────────────────────────────────────────────────────────
+function toggleAuthMode() {
+  isSignupMode = !isSignupMode;
+  document.getElementById("nameGroup").style.display = isSignupMode ? "block" : "none";
+  document.getElementById("authSubmitBtn").textContent = isSignupMode ? "Create Account" : "Log In";
+  document.getElementById("authToggleText").textContent = isSignupMode ? "Already have an account?" : "New here?";
+  document.getElementById("authToggleLink").textContent = isSignupMode ? "Log in" : "Create an account";
+}
+
 async function doLogin() {
-  const name = document.getElementById("nameInput").value.trim();
-  if (!name) return alert("Please enter your name.");
+  const email    = document.getElementById("emailInput").value.trim();
+  const password = document.getElementById("passwordInput").value;
+  if (!email || !password) return alert("Enter email and password.");
+
+  const endpoint = isSignupMode ? "/signup" : "/login";
+  const body = { email, password };
+  if (isSignupMode) {
+    const name = document.getElementById("nameInput").value.trim();
+    if (!name) return alert("Enter your name.");
+    body.name = name;
+  }
+
   try {
-    const res = await fetch(`${SERVER}/login`, {
+    const res = await fetch(`${SERVER}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name })
+      body: JSON.stringify(body)
     });
     const d = await res.json();
     if (d.error) return alert(d.error);
-    userId = d.user_id;
-    userName = d.name;
-    document.getElementById("loginScreen").style.display = "none";
-    document.getElementById("mainApp").style.display = "flex";
-    document.getElementById("userBadge").textContent = userName;
-    startCamera();
-    loadPersons();
+    enterApp(d.token, d.user_id, d.name);
   } catch (e) {
     alert("Connection failed. Check internet.");
   }
+}
+
+function enterApp(token, id, name) {
+  authToken = token;
+  userId = id;
+  userName = name;
+  localStorage.setItem("visionmate_token", token);
+  localStorage.setItem("visionmate_userId", id);
+  localStorage.setItem("visionmate_userName", name);
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("mainApp").style.display = "flex";
+  document.getElementById("userBadge").textContent = userName;
+  startCamera();
+  loadPersons();   // shows everyone already registered on this account
+}
+
+// Resume session automatically if a token was saved from a previous visit.
+// Validates the token against /persons before trusting it — an expired or
+// tampered token falls back to the login screen instead of a broken app state.
+async function tryResumeSession() {
+  if (!authToken) return;
+  const savedName = localStorage.getItem("visionmate_userName");
+  const savedId   = localStorage.getItem("visionmate_userId");
+  if (!savedName || !savedId) { clearSavedSession(); return; }
+  try {
+    const res = await fetch(`${SERVER}/persons`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: authToken })
+    });
+    const d = await res.json();
+    if (d.error) { clearSavedSession(); return; }
+    enterApp(authToken, savedId, savedName);
+  } catch {
+    // network issue on load — leave login screen up, user can retry manually
+  }
+}
+
+function clearSavedSession() {
+  localStorage.removeItem("visionmate_token");
+  localStorage.removeItem("visionmate_userId");
+  localStorage.removeItem("visionmate_userName");
+  authToken = null;
 }
 
 function doLogout() {
   stopAuto();
   stopVoice();
   if (videoStream) videoStream.getTracks().forEach(t => t.stop());
+  apiPost("/logout", { token: authToken }).catch(() => {});
+  clearSavedSession();
   userId = userName = null;
   document.getElementById("mainApp").style.display = "none";
   document.getElementById("loginScreen").style.display = "flex";
@@ -591,6 +664,14 @@ function doLogout() {
 document.getElementById("nameInput").addEventListener("keydown", e => {
   if (e.key === "Enter") doLogin();
 });
+document.getElementById("emailInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") doLogin();
+});
+document.getElementById("passwordInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") doLogin();
+});
+
+tryResumeSession();
 
 // ── High Contrast Toggle ────────────────────────────────────────────────────
 function toggleContrast() {
@@ -702,9 +783,19 @@ async function apiPost(endpoint, body, retries = 2) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
       });
+      if (res.status === 401) {
+        // Session expired/invalid — not a network issue, don't retry.
+        // Bounce to login instead of surfacing a confusing generic error.
+        clearSavedSession();
+        document.getElementById("mainApp").style.display = "none";
+        document.getElementById("loginScreen").style.display = "flex";
+        alert("Your session expired. Please log in again.");
+        throw new Error("Session expired");
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     } catch (err) {
+      if (err.message === "Session expired") throw err;
       if (attempt < retries) {
         const msg = attempt === 0
           ? "Server waking up, please wait…"
@@ -726,8 +817,8 @@ async function runFace() {
   const image = captureFrame();
   setResult("Identifying faces…", true);
   try {
-    // Pass user_id so backend can log the scan
-    const d = await apiPost("/face", { user_id: userId, image });
+    // Token identifies the account server-side; backend logs the scan
+    const d = await apiPost("/face", { token: authToken, image });
     setResult(d.result || d.error || "No result.");
   } catch { setResult("Could not connect. Check your internet connection."); }
   isBusy = false;
@@ -740,8 +831,8 @@ async function runOCR() {
   const image = captureFrame();
   setResult("Reading text…", true);
   try {
-    // Pass user_id so backend can log the scan
-    const d = await apiPost("/ocr", { user_id: userId, image });
+    // Token identifies the account server-side; backend logs the scan
+    const d = await apiPost("/ocr", { token: authToken, image });
     setResult(d.result || d.error || "No text found.");
   } catch { setResult("Could not connect. Check your internet connection."); }
   isBusy = false;
@@ -754,8 +845,8 @@ async function runObject() {
   const image = captureFrame();
   setResult("Identifying objects…", true);
   try {
-    // Pass user_id so backend can log the scan
-    const d = await apiPost("/object", { user_id: userId, image });
+    // Token identifies the account server-side; backend logs the scan
+    const d = await apiPost("/object", { token: authToken, image });
     setResult(d.result || d.error || "Could not identify.");
   } catch { setResult("Network error."); }
   isBusy = false;
@@ -799,7 +890,7 @@ async function doRegister() {
   closeRegister();
   setResult(`Registering ${name} (${images.length} angle${images.length > 1 ? "s" : ""})…`, true);
   try {
-    const d = await apiPost("/register", { user_id: userId, name, images, description: desc });
+    const d = await apiPost("/register", { token: authToken, name, images, description: desc });
     setResult(d.result || d.error || "Done.");
     loadPersons();
   } catch { setResult("Network error."); }
@@ -808,7 +899,7 @@ async function doRegister() {
 // ── Persons ────────────────────────────────────────────────────────────────
 async function loadPersons() {
   try {
-    const d = await apiPost("/persons", { user_id: userId });
+    const d = await apiPost("/persons", { token: authToken });
     const list = document.getElementById("personsList");
     if (!d.persons || d.persons.length === 0) {
       list.textContent = "No people registered yet.";
@@ -825,7 +916,7 @@ async function loadPersons() {
 
 async function forgetPerson(name) {
   if (!confirm(`Forget ${name}?`)) return;
-  const d = await apiPost("/forget", { user_id: userId, name });
+  const d = await apiPost("/forget", { token: authToken, name });
   setResult(d.result || d.error);
   loadPersons();
 }
@@ -860,7 +951,7 @@ async function autoCapture() {
   isBusy = true;
   const image = captureFrame();
   try {
-    const d = await apiPost("/face", { user_id: userId, image });
+    const d = await apiPost("/face", { token: authToken, image });
     if (d.count && d.count > 0) {
       doFlash();
       setResult(d.result);
@@ -871,7 +962,7 @@ async function autoCapture() {
     }
   } catch {}
   try {
-    const d = await apiPost("/object", { user_id: userId, image });
+    const d = await apiPost("/object", { token: authToken, image });
     if (d.tags && d.tags.length > 0) {
       if (d.result !== lastObjectResult) {   // only announce if scene changed
         doFlash();
@@ -934,7 +1025,7 @@ async function handleVoiceCommand(text) {
     if (match) {
       const name = match[1].trim();
       const desc = match[2].trim();
-      const d = await apiPost("/update_person", { user_id: userId, name, description: desc });
+      const d = await apiPost("/update_person", { token: authToken, name, description: desc });
       setResult(d.result || d.error);
       loadPersons();
     }

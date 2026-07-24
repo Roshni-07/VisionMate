@@ -4,9 +4,11 @@ import base64
 import requests
 import time
 import re
+import secrets
 from datetime import datetime
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
 from PIL import Image
 import io
 
@@ -33,6 +35,21 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT UNIQUE NOT NULL,
             faceset_token TEXT
+        )
+    """)
+    # Migration-safe: add auth columns to an existing deployed DB without
+    # wiping registered persons/activity history already on the disk.
+    for col_def in ("email TEXT", "password_hash TEXT"):
+        try:
+            c.execute(f"ALTER TABLE users ADD COLUMN {col_def}")
+        except sqlite3.OperationalError:
+            pass  # column already exists
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
     c.execute("""
@@ -124,6 +141,39 @@ def facepp_post(endpoint, extra_data=None, image_b64=None):
     except requests.exceptions.RequestException:
         return {"error_message": "NETWORK_ERROR"}
 
+def issue_session(user_id):
+    """Create a new session token for a user and store it. Returned to
+    the client, which sends it back on every subsequent request instead
+    of a raw user_id — closes the old impersonation gap where anyone
+    could just pass user_id: 2 and read someone else's data."""
+    token = secrets.token_hex(32)
+    db = get_db()
+    db.execute(
+        "INSERT INTO sessions (token, user_id, created_at) VALUES (?,?,?)",
+        (token, user_id, datetime.now().isoformat())
+    )
+    db.commit()
+    db.close()
+    return token
+
+def get_user_from_token(token):
+    """Resolve a session token to a user_id. Returns None if missing/invalid."""
+    if not token:
+        return None
+    db = get_db()
+    row = db.execute("SELECT user_id FROM sessions WHERE token=?", (token,)).fetchone()
+    db.close()
+    return row["user_id"] if row else None
+
+def require_auth(data):
+    """Call at the top of any protected route. Returns (user_id, error_response).
+    If error_response is not None, the route should return it immediately."""
+    token = (data or {}).get("token")
+    user_id = get_user_from_token(token)
+    if not user_id:
+        return None, (jsonify({"error": "Not logged in. Please sign in again."}), 401)
+    return user_id, None
+
 def ensure_faceset(user_id, user_name):
     db = get_db()
     row = db.execute("SELECT faceset_token FROM users WHERE id=?", (user_id,)).fetchone()
@@ -159,37 +209,83 @@ def clean_ocr_text(raw):
 
 @app.route("/status")
 def status():
-    return jsonify({"status": "ok", "version": "4.2"})
+    return jsonify({"status": "ok", "version": "5.0"})
 
 @app.route("/app")
 def serve_app():
     return send_file("visionmate_app.html")
 
+@app.route("/signup", methods=["POST"])
+def signup():
+    data = request.get_json()
+    email    = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+    name     = (data.get("name") or "").strip()
+    if not email or not password or not name:
+        return jsonify({"error": "Email, password, and name are all required"}), 400
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    db = get_db()
+    # Email match is case-sensitive by design, consistent with how names
+    # were already treated as case-sensitive in this app.
+    existing = db.execute("SELECT id FROM users WHERE email=?", (email,)).fetchone()
+    if existing:
+        db.close()
+        return jsonify({"error": "An account with this email already exists"}), 409
+
+    password_hash = generate_password_hash(password)
+    cur = db.execute(
+        "INSERT INTO users (name, email, password_hash) VALUES (?,?,?)",
+        (name, email, password_hash)
+    )
+    user_id = cur.lastrowid
+    db.commit()
+    db.close()
+
+    ensure_faceset(user_id, name)
+    log_activity(user_id, "signup", name)
+    token = issue_session(user_id)
+    return jsonify({"token": token, "user_id": user_id, "name": name})
+
 @app.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
-    name = (data.get("name") or "").strip()
-    if not name:
-        return jsonify({"error": "Name required"}), 400
+    email    = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+    if not email or not password:
+        return jsonify({"error": "Email and password required"}), 400
+
     db = get_db()
-    user = db.execute("SELECT * FROM users WHERE name=?", (name,)).fetchone()
-    if not user:
-        db.execute("INSERT INTO users (name) VALUES (?)", (name,))
-        db.commit()
-        user = db.execute("SELECT * FROM users WHERE name=?", (name,)).fetchone()
-    user_id = user["id"]
+    user = db.execute("SELECT * FROM users WHERE email=?", (email,)).fetchone()
     db.close()
-    ensure_faceset(user_id, name)
-    log_activity(user_id, "login", name)
-    return jsonify({"user_id": user_id, "name": name})
+    if not user or not user["password_hash"] or not check_password_hash(user["password_hash"], password):
+        return jsonify({"error": "Incorrect email or password"}), 401
+
+    log_activity(user["id"], "login", user["name"])
+    token = issue_session(user["id"])
+    return jsonify({"token": token, "user_id": user["id"], "name": user["name"]})
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    data = request.get_json()
+    token = (data or {}).get("token")
+    if token:
+        db = get_db()
+        db.execute("DELETE FROM sessions WHERE token=?", (token,))
+        db.commit()
+        db.close()
+    return jsonify({"result": "Logged out"})
 
 # ── Face — MULTI-FACE with proximity sort ─────────────────────────────────────
 @app.route("/face", methods=["POST"])
 def face():
     data = request.get_json()
-    user_id   = data.get("user_id")
+    user_id, err = require_auth(data)
+    if err:
+        return err
     image_b64 = data.get("image")
-    if not image_b64 or not user_id:
+    if not image_b64:
         return jsonify({"error": "Missing data"}), 400
     if "," in image_b64:
         image_b64 = image_b64.split(",", 1)[1]
@@ -291,7 +387,9 @@ def face():
 @app.route("/ocr", methods=["POST"])
 def ocr():
     data = request.get_json()
-    user_id   = data.get("user_id")
+    user_id, err = require_auth(data)
+    if err:
+        return err
     image_b64 = data.get("image", "")
     if "," in image_b64:
         image_b64 = image_b64.split(",", 1)[1]
@@ -333,7 +431,9 @@ def ocr():
 @app.route("/object", methods=["POST"])
 def object_detect():
     data = request.get_json()
-    user_id   = data.get("user_id")
+    user_id, err = require_auth(data)
+    if err:
+        return err
     image_b64 = data.get("image", "")
     if "," in image_b64:
         image_b64 = image_b64.split(",", 1)[1]
@@ -513,12 +613,14 @@ def object_detect():
 @app.route("/register", methods=["POST"])
 def register():
     data        = request.get_json()
-    user_id     = data.get("user_id")
+    user_id, err = require_auth(data)
+    if err:
+        return err
     name        = data.get("name", "").strip()
     description = data.get("description", "").strip()
 
     images_raw = data.get("images") or ([data.get("image")] if data.get("image") else [])
-    if not all([user_id, name]) or not images_raw:
+    if not name or not images_raw:
         return jsonify({"error": "Missing data"}), 400
 
     faceset_token = ensure_faceset(user_id, name)
@@ -586,9 +688,11 @@ def register():
 @app.route("/forget", methods=["POST"])
 def forget():
     data = request.get_json()
-    user_id = data.get("user_id")
+    user_id, err = require_auth(data)
+    if err:
+        return err
     name    = data.get("name", "").strip()
-    if not user_id or not name:
+    if not name:
         return jsonify({"error": "Missing data"}), 400
     db = get_db()
     person = db.execute(
@@ -616,9 +720,9 @@ def forget():
 @app.route("/persons", methods=["POST"])
 def persons():
     data = request.get_json()
-    user_id = data.get("user_id")
-    if not user_id:
-        return jsonify({"error": "Missing user_id"}), 400
+    user_id, err = require_auth(data)
+    if err:
+        return err
     db = get_db()
     rows = db.execute(
         "SELECT name, description FROM persons WHERE user_id=?", (user_id,)
@@ -630,10 +734,12 @@ def persons():
 @app.route("/update_person", methods=["POST"])
 def update_person():
     data        = request.get_json()
-    user_id     = data.get("user_id")
+    user_id, err = require_auth(data)
+    if err:
+        return err
     name        = data.get("name", "").strip()
     description = data.get("description", "").strip()
-    if not user_id or not name:
+    if not name:
         return jsonify({"error": "Missing data"}), 400
     db = get_db()
     result = db.execute(
@@ -651,7 +757,9 @@ def update_person():
 @app.route("/sos", methods=["POST"])
 def sos():
     data     = request.get_json()
-    user_id  = data.get("user_id")
+    user_id, err = require_auth(data)
+    if err:
+        return err
     location = data.get("location", "")
     db = get_db()
     user = db.execute("SELECT name FROM users WHERE id=?", (user_id,)).fetchone()
