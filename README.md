@@ -1,12 +1,28 @@
 # VisionMate — AI-Powered Assistive System
 
 <p align="center">
+  <img src="assets/visionmate-banner.png" alt="VisionMate — AI-powered assistive system banner" width="100%" />
+</p>
+
+<p align="center">
+  <a href="https://visionmate-zi3m.onrender.com/app"><strong>✦ Open Live Demo</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/Roshni-07/VisionMate"><strong>View Source Code</strong></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/Flask-000000?style=flat-square&logo=flask&logoColor=white" alt="Flask" />
+  <img src="https://img.shields.io/badge/Computer%20Vision-0B8FAC?style=flat-square" alt="Computer Vision" />
+  <img src="https://img.shields.io/badge/Accessibility-168A72?style=flat-square" alt="Accessibility" />
+</p>
+
+<p align="center">
   <strong>An accessible, voice-guided vision assistant designed to support people with visual impairment and people who may need help recognizing familiar faces.</strong>
 </p>
 
 <p align="center">
-  <a href="https://visionmate-zi3m.onrender.com/app">Live Demo</a> ·
-  <a href="https://github.com/Roshni-07/VisionMate">GitHub Repository</a>
+  <a href="https://visionmate-zi3m.onrender.com/app">Live Demo</a> 
 </p>
 
 ---
@@ -21,7 +37,7 @@ Using a device camera, a user can request information about a person, read visib
 
 ## Live Demo
 
-**Try VisionMate:** https://visionmate-zi3m.onrender.com/app
+**[Launch VisionMate →](https://visionmate-zi3m.onrender.com/app)**
 
 The hosted application may take time to respond after inactivity, and functionality can depend on third-party API availability, network access, browser permissions, and service quotas.
 
@@ -72,6 +88,8 @@ Voice recognition and speech output depend on browser support, microphone permis
 - Dashboard behaviour and stored data should be reviewed in the application before relying on it for care workflows.
 
 ## How It Works
+
+The flow below summarizes how a camera request travels through the application and returns as on-screen or spoken feedback.
 
 ```mermaid
 flowchart TD
@@ -195,9 +213,9 @@ These are areas of intended contribution; the project does not by itself demonst
 
 VisionMate may process camera images and face-related information through third-party services. Before using it with other people, obtain appropriate consent and review the privacy terms and data-handling practices of the external providers. Do not upload sensitive images or personal information unless you understand how they may be processed. Protect API credentials, restrict access to any stored person records, and remove test data that is no longer needed.
 
-## Acknowledgements
+## Built With
 
-VisionMate uses open-source software and third-party services, including Flask, Pillow, the browser Web Speech API, Face++, OCR.space, Imagga, and Render.
+VisionMate integrates open-source tools and external services, including Flask, Pillow, the browser Web Speech API, Face++, OCR.space, Imagga, and Render.
 
 ---
 
